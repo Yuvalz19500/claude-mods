@@ -18,13 +18,10 @@ A side drawer for projects planned with the [`/wayfinder`](https://github.com/ma
 - **Shows up when you need it.** In a project with wayfinder maps, a slim band above the prompt sums up what is ready to take and what is waiting on you, with an **Open map drawer** button. It stays out of the way everywhere else.
 - **Every map in the project.** Each map shows its status (open, in progress, done, graduated to a spec), how many tickets are done, and how many are frontier, claimed, waiting on you or blocked.
 - **Maps and specs.** Wayfinder maps hold decision tickets. Graduated specs (a `spec.md` beside numbered implementation tickets) appear in their own section and are drawn the same way.
-- **A trail map of the tickets.** Click a map to see its dependency graph. Tickets are set out in steps, each one below the tickets that block it. Trails stay solid while a blocker is still open and turn dotted once it's done. Frontier tickets (open, unblocked, unclaimed) carry an orange pennant.
-- **Ticket details.** Click a ticket in the tree to read its question and answer (or the issue and its comments), see what blocks it, open the file or issue, or press **Work this ticket** to start a session on it.
-- **Filters.** Show all tickets, only unresolved ones, or only the frontier.
-
-| Dark | Light |
-| --- | --- |
-| ![Dependency graph, dark](docs/wayfinder-graph-dark.png) | ![Dependency graph, light](docs/wayfinder-graph-light.png) |
+- **Tickets in steps.** Click a map to see its tickets as cards, set out in steps from top to bottom: each ticket sits one step below the last ticket it waits on. A card's edge takes its status's color, and an `after 17 ✓ 16 ◐` line names what it waits on. Cards fill the drawer's width and stack when it is narrow. **Tree** shows the same tickets as an indented list instead.
+- **Status chips.** `All`, `To do`, `⚑ Frontier`, `◐ Claimed`, `◷ Waiting on you`, `◌ Blocked`, `✓ Done`: each counts its tickets and, clicked, shows only them.
+- **A page per ticket.** Click a ticket to open it on its own page: its status, what it waits on and what it unblocks (each one click away), its question and answer (or the issue and its comments), **Open file** or **Open issue**, and **Work this ticket**. **← Back to map** returns to the map at that ticket.
+- **Follows your theme.** Everything is drawn with the app's own elements, light or dark; the only color it adds is each status's.
 
 **Where it looks**
 

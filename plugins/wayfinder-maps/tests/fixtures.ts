@@ -3,9 +3,9 @@ import type { Io } from '../hooks/parse'
 /** A small project on a fake disk: one wayfinder map, one spec, and noise to skip. */
 export const FILES: Record<string, string> = {
   'R/.scratch/design/map.md': '# Design: from plan to approved design\n\nLabel: wayfinder:map\n\n## Destination\n\nAn approved design.',
-  'R/.scratch/design/issues/01-look.md': '# Look of the tools\n\nType: research\nStatus: resolved\n\n## Question\n\nWhat do tools look like?\n\n## Answer\n\nDark and dense.',
+  'R/.scratch/design/issues/01-look.md': '# Look of the AI video tools on desktop and on a phone\n\nType: research\nStatus: resolved\n\n## Question\n\nWhat do tools look like?\n\n## Answer\n\nDark and dense.',
   'R/.scratch/design/issues/02-direction.md': '# Visual direction\n\nType: prototype\nStatus: open\nBlocked by: 01\n\n## Question\n\nWhich direction?',
-  'R/.scratch/design/issues/03-shell.md': '# App shell\n\nType: grilling\nStatus: open\nBlocked by: 02\n\n## Question\n\nWhat shell?',
+  'R/.scratch/design/issues/03-shell.md': '# App shell\n\nType: grilling\nStatus: open\nBlocked by: 02\n\n## Question\n\nWhat shell? It follows [the direction](02-direction.md).',
   'R/.scratch/design/issues/04-name.md': '# Product name\n\nType: grilling\nStatus: claimed\nAssignee: Yuval\n\n## Question\n\nName?',
   'R/.scratch/design/issues/05-brief.brief.md': '# a design brief, not a ticket',
   'R/.scratch/build/spec.md': '# Build release 0.1\n\nThe spec.',

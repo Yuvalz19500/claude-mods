@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { WfStatus, WfTicket } from '../types'
-import { graphSvg, layers, treeRows } from '../hooks/graph'
+import { CARD_MIN, cardLayout, dependents, layers, treeRows } from '../hooks/graph'
 
 const t = (num: number, status: WfStatus, blockedBy: number[] = [], title = `Ticket ${num}`): WfTicket => ({
   id: `id${num}`,
@@ -44,30 +44,24 @@ describe('treeRows', () => {
   })
 })
 
-describe('graphSvg', () => {
-  test('draws one card per ticket, one trail per edge, escaped text', () => {
-    const { svg, width, height } = graphSvg([t(1, 'done'), t(2, 'open', [1], 'A <b> & "c"'), t(3, 'claimed', [2])], 600)
-    expect(width).toBe(600)
-    expect(height).toBeGreaterThan(100)
-    expect(svg.startsWith('<svg')).toBe(true)
-    expect(svg.match(/class="n /g)?.length).toBe(3)
-    expect(svg.match(/class="trail/g)?.length).toBe(2)
-    expect(svg).toContain('A &lt;b&gt; &amp; &quot;c&quot;')
-    expect(svg).not.toContain('<b>')
-    expect(svg).toContain('STEP 3')
+describe('dependents', () => {
+  test('lists what a ticket unblocks', () => {
+    const all = [t(1, 'done'), t(2, 'open', [1]), t(3, 'blocked', [1, 2]), t(4, 'open')]
+    expect(dependents(all, 1).map(x => x.num)).toEqual([2, 3])
+    expect(dependents(all, 4)).toEqual([])
+  })
+})
+
+describe('cardLayout', () => {
+  test('one full-width card in a narrow drawer', () => {
+    expect(cardLayout(40)).toEqual({ perRow: 1, cardWidth: 40, gap: 2 })
+    expect(cardLayout(20).cardWidth).toBe(20)
   })
 
-  test('a 150-ticket map stays under the Svg element’s size limit', () => {
-    const many = Array.from({ length: 150 }, (_, i) =>
-      t(i + 1, i % 3 === 0 ? 'done' : 'blocked', i > 1 ? [i, i - 1] : [], 'A fairly long ticket title for size'),
-    )
-    const g = graphSvg(many, 700)
-    expect(g.isTooBig).toBe(false)
-    expect(g.svg.length).toBeLessThan(131072)
-  })
-
-  test('a huge map says it is too big instead of drawing past the limit', () => {
-    const huge = Array.from({ length: 600 }, (_, i) => t(i + 1, 'blocked', i > 0 ? [i] : [], 'A fairly long ticket title for size'))
-    expect(graphSvg(huge, 700).isTooBig).toBe(true)
+  test('several cards across a wide drawer, sharing the row', () => {
+    const { perRow, cardWidth, gap } = cardLayout(130)
+    expect(perRow).toBe(4)
+    expect(cardWidth).toBeGreaterThanOrEqual(CARD_MIN)
+    expect(perRow * cardWidth + (perRow - 1) * gap).toBeLessThanOrEqual(130)
   })
 })

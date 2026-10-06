@@ -43,15 +43,20 @@ export type WfData = {
   errors: string[]
 }
 
-export type WfFilter = 'all' | 'unresolved' | 'frontier'
+export type WfFilter = 'all' | 'unresolved' | 'frontier' | 'claimed' | 'waiting' | 'blocked' | 'done'
+
+export type WfLayout = 'steps' | 'tree'
 
 export type WfView = {
   mapId: string | null
-  selected: string | null
+  /** The ticket shown on a page of its own, or null for the map. */
+  ticketId: string | null
   filter: WfFilter
+  layout: WfLayout
 }
 
-export type WfDetail = { id: string; body: string } | null
+/** The open ticket body as the drawer shows it, and the file links in it. */
+export type WfDetail = { id: string; body: string; links: { href: string; path: string }[] } | null
 
 declare module 'claude-code' {
   interface PluginState {
