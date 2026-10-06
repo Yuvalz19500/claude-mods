@@ -48,35 +48,35 @@ export function layers(tickets: WfTicket[]): Map<number, number> {
   return memo
 }
 
-/** Small marks drawn at a card's top-right corner, one per status. */
+/** The status marks, drawn once in <defs> and placed on each card with <use>; 14×14 at the card's top-right. */
+const MARKS = [
+  // a pennant: the trail goes here next
+  `<g id="m-open"><path d="M0,13V0l9,3.5l-9,3.5" stroke="${STATUS_STYLE.open.fill}" fill="${STATUS_STYLE.open.fill}" class="pole"/></g>`,
+  // an hourglass: the ball is in your court
+  `<g id="m-waiting"><path d="M-1,0h10l-5,6.5l5,6.5h-10l5,-6.5z" fill="${STATUS_STYLE.waiting.fill}"/></g>`,
+  // a padlock
+  `<g id="m-blocked"><path d="M1,6v-2.5a3,3 0 0 1 6,0v2.5" fill="none" stroke="${STATUS_STYLE.blocked.fill}" stroke-width="1.6"/><rect x="-1" y="6" width="10" height="7.5" rx="1.5" fill="${STATUS_STYLE.blocked.fill}"/></g>`,
+  `<g id="m-done"><circle cx="4" cy="6" r="7" fill="${STATUS_STYLE.done.fill}"/><path d="M.8,6.2l2.3,2.3l4.2,-4.6" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></g>`,
+  `<g id="m-dropped"><path d="M0,2l8,8M8,2l-8,8" stroke="${STATUS_STYLE.dropped.fill}" stroke-width="1.8" stroke-linecap="round"/></g>`,
+].join('')
+
+/** One card's mark: a <use> of the shared symbol, or the assignee's initial in a disc when claimed. */
 function statusMark(t: WfTicket, x: number, y: number): string {
-  const c = STATUS_STYLE[t.status].fill
-  switch (t.status) {
-    case 'open': // a pennant: the trail goes here next
-      return `<path d="M${x},${y + 13}V${y}l9,3.5l-9,3.5" class="pole" stroke="${c}" fill="${c}"/>`
-    case 'claimed': {
-      const initial = esc((t.assignee ?? '•').replace(/^@/, '').charAt(0).toUpperCase())
-      return `<circle cx="${x + 4}" cy="${y + 6}" r="7" fill="${c}"/><text x="${x + 4}" y="${y + 9}" class="ini" text-anchor="middle">${initial}</text>`
-    }
-    case 'waiting': // an hourglass: the ball is in your court
-      return `<path d="M${x - 1},${y}h10l-5,6.5l5,6.5h-10l5,-6.5z" fill="${c}"/>`
-    case 'blocked': // a padlock
-      return `<path d="M${x + 1},${y + 6}v-2.5a3,3 0 0 1 6,0v2.5" fill="none" stroke="${c}" stroke-width="1.6"/><rect x="${x - 1}" y="${y + 6}" width="10" height="7.5" rx="1.5" fill="${c}"/>`
-    case 'done':
-      return `<circle cx="${x + 4}" cy="${y + 6}" r="7" fill="${c}"/><path d="M${x + 0.8},${y + 6.2}l2.3,2.3l4.2,-4.6" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`
-    default:
-      return `<path d="M${x},${y + 2}l8,8M${x + 8},${y + 2}l-8,8" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/>`
+  if (t.status === 'claimed') {
+    const initial = esc((t.assignee ?? '•').replace(/^@/, '').charAt(0).toUpperCase())
+    return `<circle cx="${x + 4}" cy="${y + 6}" r="7" fill="${STATUS_STYLE.claimed.fill}"/><text x="${x + 4}" y="${y + 9}" class="ini" text-anchor="middle">${initial}</text>`
   }
+  return `<use href="#m-${t.status}" x="${x}" y="${y}"/>`
 }
 
-/** A gently wavering line across the map: the contour between two steps. */
-function contour(y: number, W: number, seed: number): string {
-  let d = `M8,${y}`
+/** A gently wavering line across the map: the contour between two steps, at y = 0. Two variants, so neighbours differ. */
+function contourPath(W: number, seed: number): string {
+  let d = 'M8,0'
   for (let x = 8; x < W - 20; x += 24) {
     const a = 2 + ((seed * 7 + x) % 5) * 0.35
-    d += ` q6,${-a.toFixed(2)} 12,0 t12,0`
+    d += ` q6,${-a.toFixed(1)} 12,0 t12,0`
   }
-  return `<path d="${d}" class="contour"/>`
+  return `<path id="contour${seed % 2}" d="${d}"/>`
 }
 
 /**
@@ -86,7 +86,10 @@ function contour(y: number, W: number, seed: number): string {
  * from each blocker down to what it unblocks: solid while the blocker is
  * still ahead, dotted once it is walked.
  */
-export function graphSvg(tickets: WfTicket[], widthPx: number): { svg: string; width: number; height: number } {
+/** What the Svg element takes at most. */
+export const SVG_LIMIT = 131_000
+
+export function graphSvg(tickets: WfTicket[], widthPx: number): { svg: string; width: number; height: number; isTooBig: boolean } {
   const W = Math.max(300, Math.min(1100, widthPx))
   const NODE_W = 172
   const NODE_H = 60
@@ -110,7 +113,7 @@ export function graphSvg(tickets: WfTicket[], widthPx: number): { svg: string; w
   for (const [step, l] of [...byLayer.keys()].sort((a, b) => a - b).entries()) {
     if (step > 0) {
       const cy = y - GAP_Y / 2 + 2
-      contours.push(contour(cy, W, step))
+      contours.push(`<use href="#contour${step % 2}" y="${cy}" class="contour"/>`)
     }
     contours.push(`<text x="${PAD}" y="${y - 6}" class="step">STEP ${step + 1}</text>`)
     // Order under parents (barycenter of their x), else by number.
@@ -139,11 +142,11 @@ export function graphSvg(tickets: WfTicket[], widthPx: number): { svg: string; w
     for (const b of t.blockedBy) {
       const from = pos.get(b)
       if (!from) continue
-      const x1 = from.x + NODE_W / 2
+      const x1 = Math.round(from.x + NODE_W / 2)
       const y1 = from.y + NODE_H
-      const x2 = to.x + NODE_W / 2
+      const x2 = Math.round(to.x + NODE_W / 2)
       const y2 = to.y - 4
-      const dy = Math.max(20, (y2 - y1) / 2)
+      const dy = Math.round(Math.max(20, (y2 - y1) / 2))
       const isWalked = byNum.get(b)?.status === 'done'
       trails.push(
         `<path d="M${x1},${y1} C${x1},${y1 + dy} ${x2},${y2 - dy} ${x2},${y2}" class="${isWalked ? 'trail walked' : 'trail'}" marker-end="url(#${isWalked ? 'hw' : 'h'})"/>`,
@@ -151,21 +154,21 @@ export function graphSvg(tickets: WfTicket[], widthPx: number): { svg: string; w
     }
   }
 
-  const cards = tickets.map(t => {
+  // Cards are positioned by translate; inside, every coordinate is the card's own.
+  const card = (t: WfTicket, withTips: boolean) => {
     const { x, y: ny } = pos.get(t.num)!
     const st = STATUS_STYLE[t.status]
     const [l1, l2 = ''] = wrap(t.title, 25)
-    const tip = `${t.ref} · ${t.title}\n${st.label}${t.type ? ` · ${t.type}` : ''}${t.assignee ? ` · ${t.assignee}` : ''}${
-      t.blockedBy.length ? `\nafter ${t.blockedBy.map(n => byNum.get(n)?.ref ?? n).join(', ')}` : ''
-    }`
-    return `<g class="n ${t.status}"><title>${esc(tip)}</title>
-<rect x="${x}" y="${ny}" width="${NODE_W}" height="${NODE_H}" rx="6" class="card"/>
-<rect x="${x + 6}" y="${ny + 9}" width="3.5" height="${NODE_H - 18}" rx="1.75" fill="${st.fill}"/>
-<text x="${x + 17}" y="${ny + 18}"><tspan class="ref">${esc(t.ref)}</tspan><tspan class="type" dx="7">${esc((t.type ?? '').toUpperCase())}</tspan></text>
-<text x="${x + 17}" y="${ny + 35}" class="ttl">${esc(l1)}</text>
-<text x="${x + 17}" y="${ny + 49}" class="ttl">${esc(l2)}</text>
-${statusMark(t, x + NODE_W - 17, ny + 8)}</g>`
-  })
+    const tip = withTips
+      ? `<title>${esc(
+          `${t.ref} · ${t.title}\n${st.label}${t.type ? ` · ${t.type}` : ''}${t.assignee ? ` · ${t.assignee}` : ''}${
+            t.blockedBy.length ? `\nafter ${t.blockedBy.map(n => byNum.get(n)?.ref ?? n).join(', ')}` : ''
+          }`,
+        )}</title>`
+      : ''
+    const type = t.type ? `<tspan class="type" dx="7">${esc(t.type.toUpperCase())}</tspan>` : ''
+    return `<g class="n ${t.status}" transform="translate(${Math.round(x)},${ny})">${tip}<use href="#card" class="card"/><use href="#blaze" fill="${st.fill}"/><text x="17" y="18"><tspan class="ref">${esc(t.ref)}</tspan>${type}</text><text x="17" y="35" class="ttl">${esc(l1)}</text>${l2 ? `<text x="17" y="49" class="ttl">${esc(l2)}</text>` : ''}${statusMark(t, NODE_W - 17, 8)}</g>`
+  }
 
   const legend = (['open', 'claimed', 'waiting', 'blocked', 'done'] as const)
     .map((s, i) => {
@@ -199,13 +202,20 @@ text{font-family:ui-sans-serif,system-ui,'Segoe UI',sans-serif;fill:var(--ink)}
 <defs>
 <marker id="h" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.5L8,5L1,8.5" fill="none" stroke="var(--trail)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
 <marker id="hw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1.5L8,5L1,8.5" fill="none" stroke="var(--trail)" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<rect id="card" width="${NODE_W}" height="${NODE_H}" rx="6"/>
+<rect id="blaze" x="6" y="9" width="3.5" height="${NODE_H - 18}" rx="1.75"/>
+${MARKS}
+${contourPath(W, 0)}${contourPath(W, 1)}
 </defs>
 ${legend}
 ${contours.join('\n')}
 ${trails.join('\n')}
-${cards.join('\n')}
+%CARDS%
 </svg>`
-  return { svg, width: W, height: H }
+  // Tooltips are the first thing to go when a big map would pass the Svg element's limit.
+  const withTips = svg.replace('%CARDS%', tickets.map(t => card(t, true)).join(''))
+  const out = withTips.length <= SVG_LIMIT ? withTips : svg.replace('%CARDS%', tickets.map(t => card(t, false)).join(''))
+  return { svg: out, width: W, height: H, isTooBig: out.length > SVG_LIMIT }
 }
 
 /**

@@ -43,11 +43,11 @@ The prompts the buttons send can be changed under `/config` (or `pluginConfigs` 
 
 | Option | Default |
 | --- | --- |
-| `mapPrompt` | `/wayfinder {map}` |
-| `mapTicketPrompt` | `/wayfinder {map} {ticket}` |
-| `specTicketPrompt` | `/implement {ticket}` |
+| `mapPrompt` | `/mattpocock-skills:wayfinder {map}` |
+| `mapTicketPrompt` | `/mattpocock-skills:wayfinder {map} {ticket}` |
+| `specTicketPrompt` | `/mattpocock-skills:implement {ticket}` |
 
-`{map}` is the map's path or issue URL, `{ticket}` the ticket's path or issue URL, `{title}` its title.
+`{map}` is the map's path or issue URL, `{ticket}` the ticket's path or issue URL, `{title}` its title. A prompt starting with `/` runs as that slash command; anything else is sent as a message.
 
 ## Developing a mod
 
@@ -57,4 +57,4 @@ Each mod is a folder under `plugins/` with `.claude-plugin/plugin.json`, `hooks/
 claude plugin validate plugins/<mod>
 ```
 
-Load a working copy into a session with `claude --plugin-dir plugins/<mod>`; it hot-reloads on save. Add the mod to `.claude-plugin/marketplace.json` to publish it.
+Run its tests with `claude plugin test plugins/<mod>`. Load a working copy into a session with `claude --plugin-dir plugins/<mod>`; it hot-reloads on save. Add the mod to `.claude-plugin/marketplace.json` to publish it.

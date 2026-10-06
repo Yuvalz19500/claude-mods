@@ -1,6 +1,6 @@
 {
   "name": "wayfinder-maps",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A side drawer that shows every wayfinder map and spec in the project (markdown or GitHub issues), their tickets, statuses and dependency graph.",
   "author": {
     "name": "Yuval",
@@ -20,19 +20,19 @@
       "type": "string",
       "title": "Work-the-map prompt",
       "description": "Prompt sent by 'Work next' on a map. {map} is the map path or issue URL.",
-      "default": "/wayfinder {map}"
+      "default": "/mattpocock-skills:wayfinder {map}"
     },
     "mapTicketPrompt": {
       "type": "string",
       "title": "Work-a-map-ticket prompt",
       "description": "Prompt sent by 'Work this ticket' on a wayfinder ticket. {map}, {ticket}, {title}.",
-      "default": "/wayfinder {map} {ticket}"
+      "default": "/mattpocock-skills:wayfinder {map} {ticket}"
     },
     "specTicketPrompt": {
       "type": "string",
       "title": "Work-a-spec-ticket prompt",
       "description": "Prompt sent by 'Work this ticket' on an implementation (spec) ticket. {map}, {ticket}, {title}.",
-      "default": "/implement {ticket}"
+      "default": "/mattpocock-skills:implement {ticket}"
     }
   }
 }

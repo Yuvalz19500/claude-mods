@@ -1,15 +1,14 @@
-
 import type { WfMap } from '../types'
 import { finishTickets, mapStatus, parseHeadDoc, parseTicketFile } from './parse'
 import type { Io } from './parse'
 import type { ParsedTicketFile } from './parse'
 
-/** Folders never worth descending into when looking for maps. */
-const SKIP = new Set([
-  'node_modules', '.git', 'dist', 'build', 'out', 'coverage', 'target', 'vendor',
-  '.next', '.turbo', '.cache', '.venv', 'venv', '__pycache__', 'worktrees', '.pnpm-store',
-  'src', 'assets', 'designs', 'research', 'spikes',
-])
+/** Folders never worth descending into. */
+const NEVER = new Set(['node_modules', '.git', '.pnpm-store', '.venv', 'venv', '__pycache__', 'worktrees'])
+/** Code and build folders, skipped outside planning folders (an effort may well be named build). */
+const CODE = new Set(['dist', 'build', 'out', 'coverage', 'target', 'vendor', '.next', '.turbo', '.cache', 'src', 'assets', 'designs', 'research', 'spikes'])
+/** Where efforts live: inside these, every folder name is fair game. */
+const PLANNING = /(^|\/)(\.scratch|\.wayfinder|\.planning|docs|planning|wayfinder)(\/|$)/
 const TICKET_DIRS = ['issues', 'tickets']
 const MAX_DEPTH = 4
 
@@ -44,7 +43,8 @@ async function findEffortDirs(io: Io, root: string): Promise<{ dir: string; rel:
         const ticketDir = TICKET_DIRS.find(d => entries.some(e => e.name === d && e.kind === 'dir'))
         if (ticketDir && rel !== '') found.push({ dir, rel, names })
         for (const e of entries) {
-          if (e.kind !== 'dir' || SKIP.has(e.name) || TICKET_DIRS.includes(e.name)) continue
+          if (e.kind !== 'dir' || NEVER.has(e.name) || TICKET_DIRS.includes(e.name)) continue
+          if (CODE.has(e.name) && !PLANNING.test(rel)) continue
           if (e.name.startsWith('.') && !['.scratch', '.wayfinder', '.planning'].includes(e.name)) continue
           next.push({ dir: join(dir, e.name), rel: rel ? `${rel}/${e.name}` : e.name })
         }

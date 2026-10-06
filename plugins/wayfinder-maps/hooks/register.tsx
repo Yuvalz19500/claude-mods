@@ -5,6 +5,7 @@ import type { WfData, WfDetail, WfFilter, WfMap, WfTicket, WfView } from '../typ
 import { githubIssueBody, githubRepo, loadGithubMaps } from './github'
 import { STATUS_STYLE, graphSvg, treeRows } from './graph'
 import { loadMarkdownMaps, readText } from './markdown'
+import { ClickGate } from './clicks'
 import { counts } from './parse'
 import type { Io } from './parse'
 
@@ -26,11 +27,28 @@ const MAP_STATUS_LABEL: Record<WfMap['status'], { text: string; color: string }>
   graduated: { text: 'graduated → spec', color: '#2f9e6a' },
 }
 
-const prompts = { map: '/wayfinder {map}', mapTicket: '/wayfinder {map} {ticket}', specTicket: '/implement {ticket}' }
+const prompts = {
+  map: '/mattpocock-skills:wayfinder {map}',
+  mapTicket: '/mattpocock-skills:wayfinder {map} {ticket}',
+  specTicket: '/mattpocock-skills:implement {ticket}',
+}
 let lastGithubAt = 0
 let githubMaps: WfMap[] = []
 let githubError: string | undefined
 let isRefreshing = false
+/** A refresh asked for while one runs: runs after it; true when it should fetch GitHub. */
+let queued: boolean | null = null
+
+// Button actions by key, so a focus move (desktop) can run the same action a press does.
+const handlers = new Map<string, () => void>()
+const gate = new ClickGate()
+let drawnOn: string | undefined
+
+function bind(key: string, fn: () => unknown): () => void {
+  const handler = () => void fn()
+  handlers.set(key, handler)
+  return handler
+}
 
 const bar = (done: number, total: number, width = 16) => {
   const filled = total === 0 ? 0 : Math.round((done / total) * width)
@@ -62,10 +80,17 @@ function ioFor($: EngineInterface): Io {
   }
 }
 
-async function refresh($: EngineInterface, github: boolean) {
-  if (isRefreshing) return
+/**
+ * Rescans the project. A quiet refresh (the background polls) draws nothing
+ * while it runs, and nothing at all when the maps did not change.
+ */
+async function refresh($: EngineInterface, github: boolean, isQuiet: boolean) {
+  if (isRefreshing) {
+    queued = (queued ?? false) || github
+    return
+  }
   isRefreshing = true
-  await update($, isLoading, () => true)
+  if (!isQuiet) await update($, isLoading, () => true)
   try {
     const io = ioFor($)
     const root = await $.session.root()
@@ -93,42 +118,47 @@ async function refresh($: EngineInterface, github: boolean) {
         Number(a.kind === 'spec') - Number(b.kind === 'spec') || isFinished(a) - isFinished(b) || a.title.localeCompare(b.title),
     )
     const next: WfData = { root, maps: all, loadedAt: await $.clock.now(), errors }
-    await update($, data, prev =>
-      prev && JSON.stringify({ ...prev, loadedAt: 0 }) === JSON.stringify({ ...next, loadedAt: 0 }) ? prev : next,
-    )
+    const prev = await read($, data)
+    const isSame = prev !== null && JSON.stringify({ ...prev, loadedAt: 0 }) === JSON.stringify({ ...next, loadedAt: 0 })
+    if (!isSame) await update($, data, () => next)
   } finally {
     isRefreshing = false
-    await update($, isLoading, () => false)
+    if (!isQuiet) await update($, isLoading, () => false)
+  }
+  if (queued !== null) {
+    const fetchGithub = queued
+    queued = null
+    await refresh($, fetchGithub, true)
   }
 }
 
 async function openDrawer($: EngineInterface) {
   await $.ui.open({ id: PANE, title: TITLE })
   await update($, isPaneOpen, () => true)
-  void refresh($, true)
+  void refresh($, true, false)
 }
 
 async function pollIfOpen($: EngineInterface, github: boolean) {
   const isOpen = (await $.ui.panes()).some(p => p.id === PANE)
-  if (isOpen) await refresh($, github)
+  if (isOpen) await refresh($, github, true)
 }
 
+/** Opens a ticket's details, or closes them when it is the open one. Body first, so it draws once. */
 async function select($: EngineInterface, map: WfMap, ticket: WfTicket) {
   const current = await read($, view)
   if (current.selected === ticket.id) {
     await update($, view, v => ({ ...v, selected: null }))
     return
   }
-  await update($, view, v => ({ ...v, selected: ticket.id }))
-  await update($, detail, () => ({ id: ticket.id, body: '_Loading…_' }))
   const io = ioFor($)
   const root = (await read($, data))?.root ?? (await $.session.root())
   let body: string
   if (map.source === 'github' && ticket.url) body = await githubIssueBody(io, root, ticket.url)
   else body = ticket.path ? await readText(io, ticket.path) : ''
-  body = body.replace(/^# .*\r?\n/, '').trim()
+  body = body.replace(/^\uFEFF?# .*\r?\n/, '').trim()
   if (body.length > 9000) body = body.slice(0, 9000) + '\n\n_…truncated; open the file for the rest._'
-  await update($, detail, d => (d?.id === ticket.id ? { id: ticket.id, body: body || '_Empty ticket._' } : d))
+  await update($, detail, () => ({ id: ticket.id, body: body || '_Empty ticket._' }))
+  await update($, view, v => ({ ...v, selected: ticket.id }))
 }
 
 async function work($: EngineInterface, map: WfMap, ticket: WfTicket | null) {
@@ -137,8 +167,11 @@ async function work($: EngineInterface, map: WfMap, ticket: WfTicket | null) {
   const ticketRef = ticket ? (ticket.path ? relative(root, ticket.path) : (ticket.url ?? ticket.ref)) : ''
   const template = !ticket ? prompts.map : map.kind === 'spec' ? prompts.specTicket : prompts.mapTicket
   const text = fill(template, { map: mapRef, ticket: ticketRef, title: ticket?.title ?? map.title }).trim()
-  await $.prompt.submit({ text, asUser: true })
-  $.ui.toast(`Sent: ${text}`)
+  // A slash command (a skill) runs as one; anything else is sent as a prompt.
+  const slash = text.match(/^\/(\S+)\s*([\s\S]*)$/)
+  if (slash) await $.command.run({ command: slash[1]!, args: slash[2] ?? '' })
+  else await $.prompt.submit({ text, asUser: true })
+  $.ui.toast(`Started: ${text}`)
 }
 
 export const register: Register = (on, options) => {
@@ -153,13 +186,31 @@ export const register: Register = (on, options) => {
     })
     $.clock.every(POLL_MS, () => void pollIfOpen($, false))
     // A first scan in the background, so the band can offer the drawer in a wayfinder project.
-    $.clock.after(500, () => void refresh($, false))
+    $.clock.after(500, () => void refresh($, false, true))
     return next(e)
   })
 
   on('command.run', { command: 'wayfinder-maps' }, async $ => {
     await openDrawer($)
     return { text: 'Wayfinder drawer opened.' }
+  })
+
+  // Desktop: the click that brings the focus onto a button is the press (see ClickGate).
+  on('ui.focus', async ($, e, next) => {
+    const result = await next(e)
+    const isOurs = (e.requestId === PANE || e.component === 'AbovePrompt') && (!e.plugin || e.plugin === 'wayfinder-maps')
+    if (!isOurs || 'deny' in result) return result
+    const handler = e.element ? handlers.get(e.element) : undefined
+    const now = await $.clock.now()
+    const isPerson = e.origin.kind === 'person'
+    if (gate.focus({ key: e.element, isPerson, isDesktop: drawnOn === 'desktop', now }) && handler) handler()
+    return result
+  })
+
+  on('ui.press', async ($, e, next) => {
+    if (!handlers.has(e.element)) return next(e)
+    if (!gate.press(e.element, await $.clock.now())) return { element: e.element }
+    return next(e)
   })
 
   on('ui.close', async ($, e, next) => {
@@ -173,6 +224,7 @@ export const register: Register = (on, options) => {
     const d = await read($, data)
     const open = await read($, isPaneOpen)
     if (e.props.hasSurvey || open || !d || d.maps.length === 0) return next(e)
+    drawnOn = e.surface
     const { Box, Text, Button } = $.ui.resolve(e)
     const live = d.maps.filter(m => m.status !== 'done' && m.status !== 'graduated')
     const all = live.flatMap(m => m.tickets)
@@ -192,7 +244,7 @@ export const register: Register = (on, options) => {
       <Box flexDirection="row" gap={1}>
         <Text color={STATUS_STYLE.open.fill}>⚑</Text>
         <Text dimColor>{summary}</Text>
-        <Button key="open-drawer" label="Open map drawer" plain onPress={() => void openDrawer($)} />
+        <Button key="open-drawer" label="Open map drawer" plain onPress={bind('open-drawer', () => openDrawer($))} />
       </Box>
     )
   })
@@ -207,6 +259,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    drawnOn = e.surface
     const table = $.ui.resolve(e)
     const { Box, Text, Button, Markdown, Link } = table
     const Svg = 'Svg' in table ? table.Svg : null
@@ -220,7 +273,7 @@ export const register: Register = (on, options) => {
         <Text bold>🧭 Wayfinder</Text>
         <Box flexDirection="row" gap={1}>
           {loading && <Text dimColor>refreshing…</Text>}
-          <Button key="refresh" label="Refresh" hotkey="r" plain onPress={() => void refresh($, true)} />
+          <Button key="refresh" label="Refresh" hotkey="r" plain onPress={bind('refresh', () => refresh($, true, false))} />
         </Box>
       </Box>
     )
@@ -249,7 +302,7 @@ export const register: Register = (on, options) => {
               key={`open:${m.id}`}
               label={m.title}
               plain
-              onPress={() => update($, view, x => ({ ...x, mapId: m.id, selected: null }))}
+              onPress={bind(`open:${m.id}`, () => update($, view, x => ({ ...x, mapId: m.id, selected: null })))}
             />
             <Box flexDirection="row" gap={1} flexWrap="wrap">
               <Text color={st.color}>● {st.text}</Text>
@@ -303,7 +356,7 @@ export const register: Register = (on, options) => {
         key={`filter:${f}`}
         label={label}
         variant={v.filter === f ? 'primary' : 'secondary'}
-        onPress={() => update($, view, x => ({ ...x, filter: f }))}
+        onPress={bind(`filter:${f}`, () => update($, view, x => ({ ...x, filter: f })))}
       />
     )
 
@@ -326,7 +379,7 @@ export const register: Register = (on, options) => {
           <Markdown text={det?.id === t.id ? det.body : '_Loading…_'} />
           <Box flexDirection="row" gap={1} flexWrap="wrap">
             {t.status !== 'done' && t.status !== 'dropped' && (
-              <Button key={`work:${t.id}`} label="Work this ticket" variant="primary" onPress={() => void work($, map, t)} />
+              <Button key={`work:${t.id}`} label="Work this ticket" variant="primary" onPress={bind(`work:${t.id}`, () => work($, map, t))} />
             )}
             {t.url ? (
               <Link href={t.url} label="Open issue ↗" />
@@ -343,7 +396,7 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column" gap={1}>
         {header}
-        <Button key="back" label="← All maps" plain hotkey="b" onPress={() => update($, view, x => ({ ...x, mapId: null, selected: null }))} />
+        <Button key="back" label="← All maps" plain hotkey="b" onPress={bind('back', () => update($, view, x => ({ ...x, mapId: null, selected: null })))} />
         <Box flexDirection="column">
           <Text bold wrap="wrap">
             {map.title}
@@ -361,7 +414,7 @@ export const register: Register = (on, options) => {
         <Box flexDirection="row" gap={1} flexWrap="wrap">
           {map.url ? <Link href={map.url} label="Open map ↗" /> : map.path ? <Markdown text={`[Open ${map.kind} ↗](${fileUrl(map.path)})`} /> : ''}
           {map.kind === 'map' && map.status !== 'done' && map.status !== 'graduated' && (
-            <Button key="work-map" label={nextUp ? `Work next: ${nextUp.ref}` : 'Work the map'} onPress={() => void work($, map, null)} />
+            <Button key="work-map" label={nextUp ? `Work next: ${nextUp.ref}` : 'Work the map'} onPress={bind('work-map', () => work($, map, null))} />
           )}
         </Box>
         <Box flexDirection="row" gap={1} flexWrap="wrap">
@@ -369,11 +422,12 @@ export const register: Register = (on, options) => {
           {filterButton('unresolved', `Unresolved ${c.total - c.done}`)}
           {filterButton('frontier', `Frontier ${c.frontier}`)}
         </Box>
-        {graph && graph.svg.length < 125_000 && Svg ? (
+        {graph && !graph.isTooBig && Svg ? (
           <Svg source={graph.svg} alt={`Dependency graph of ${shown.length} tickets`} width={graph.width} isInteractive />
         ) : (
           ''
         )}
+        {graph?.isTooBig && <Text dimColor>Too many tickets to draw the graph. Filter to Unresolved or Frontier to see it.</Text>}
         {shown.length === 0 && <Text dimColor>No tickets match this filter.</Text>}
         <Box flexDirection="column">
           {rows.map(({ ticket: t, depth, isRepeat, extraParents }, i) => {
@@ -396,7 +450,7 @@ export const register: Register = (on, options) => {
                       label={`${t.ref} ${t.title}`}
                       plain
                       dimColor={t.status === 'done'}
-                      onPress={() => void select($, map, t)}
+                      onPress={bind(`t:${t.id}`, () => select($, map, t))}
                     />
                   )}
                   {!isRepeat && t.type && <Text dimColor> · {t.type}</Text>}
