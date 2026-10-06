@@ -10,7 +10,11 @@ A plugin marketplace of Claude Code **mods**: plugins of function hooks (panes, 
    - `claude plugin validate plugins/<mod>`
    - `claude plugin test plugins/<mod>`: cover every button the mod draws, pressed once, on `desktop` and `terminal`.
    - `tsc` with the tsconfig printed in the header of `claude-code.d.ts`.
-4. **Publish.** Bump `version` in `plugin.json`, keep the marketplace entry and the README section current, commit, push, then:
+4. **Publish.** Bump `version` in `plugin.json` (semver: a breaking change to a setting, command or skill bumps the minor while below 1.0), bring the README section up to date with every user-facing change, keep the marketplace entry current, commit, push. Then cut a **GitHub release** for it, tagged `<mod>-v<version>` on the release commit:
+   ```bash
+   gh release create <mod>-v<version> --target <commit> --title "<mod> <version>" --notes-file <notes.md>
+   ```
+   The notes have four sections, each a bullet list written for someone using the mod, with "None." where empty: **What's new**, **Changes**, **Fixes**, **Breaking changes** (what stops working, and what to do about it). Then:
    ```bash
    claude plugin marketplace update claude-mods
    ```
