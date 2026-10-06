@@ -10,7 +10,7 @@ A plugin marketplace of Claude Code **mods**: plugins of function hooks (panes, 
    - `claude plugin validate plugins/<mod>`
    - `claude plugin test plugins/<mod>`: cover every button the mod draws, pressed once, on `desktop` and `terminal`.
    - `tsc` with the tsconfig printed in the header of `claude-code.d.ts`.
-4. **Publish.** Bump `version` in `plugin.json` (semver: a breaking change to a setting, command or skill bumps the minor while below 1.0), bring the README section up to date with every user-facing change, keep the marketplace entry current, commit, push. Then cut a **GitHub release** for it, tagged `<mod>-v<version>` on the release commit:
+4. **Publish, only on the person's go-ahead.** A release waits until the person has tried the change in the app (desktop and terminal) and said to release it, with every test passing; until then the work lives in the dev copy and the repo's working tree, uncommitted. Then bump `version` in `plugin.json` (semver: a breaking change to a setting, command or skill bumps the minor while below 1.0), bring the README section up to date with every user-facing change, keep the marketplace entry current, commit, push. Then cut a **GitHub release** for it, tagged `<mod>-v<version>` on the release commit:
    ```bash
    git tag <mod>-v<version> <commit> && git push origin <mod>-v<version>
    ```
