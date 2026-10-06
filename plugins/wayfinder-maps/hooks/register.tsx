@@ -211,11 +211,25 @@ async function work($: EngineInterface, map: WfMap, ticket: WfTicket | null) {
 
 type Els = ReturnType<EngineInterface['ui']['resolve']>
 
+/**
+ * The mod's mark: a trail blaze, the painted bar a hiker follows, before the
+ * name. One text cell, so the terminal and the desktop draw it alike.
+ */
+function mark(el: Els) {
+  const { Box, Text } = el
+  return (
+    <Box flexDirection="row" flexShrink={0}>
+      <Text color={STATUS_STYLE.open.fill}>▍</Text>
+      <Text bold>Wayfinder</Text>
+    </Box>
+  )
+}
+
 function header($: EngineInterface, el: Els, loading: boolean) {
   const { Box, Text, Button } = el
   return (
     <Box flexDirection="row" justifyContent="space-between">
-      <Text bold>🧭 Wayfinder</Text>
+      {mark(el)}
       <Box flexDirection="row" gap={1}>
         {loading && <Text dimColor>refreshing…</Text>}
         <Button key="refresh" label="Refresh" hotkey="r" plain onPress={bind('refresh', () => refresh($, true, false))} />
@@ -603,7 +617,8 @@ export const register: Register = (on, options) => {
     const open = await read($, isPaneOpen)
     if (e.props.hasSurvey || open || !d || d.maps.length === 0) return next(e)
     drawnOn = e.surface
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const el = $.ui.resolve(e)
+    const { Box, Text, Button } = el
     const live = d.maps.filter(m => m.status !== 'done' && m.status !== 'graduated')
     const all = live.flatMap(m => m.tickets)
     const frontier = all.filter(t => t.isFrontier).length
@@ -620,7 +635,8 @@ export const register: Register = (on, options) => {
       .join(' · ')
     return (
       <Box flexDirection="row" gap={1}>
-        <Text color={STATUS_STYLE.open.fill}>⚑</Text>
+        {mark(el)}
+        <Text dimColor>·</Text>
         <Text dimColor>{summary}</Text>
         <Button key="open-drawer" label="Open map drawer" plain onPress={bind('open-drawer', () => openDrawer($))} />
       </Box>

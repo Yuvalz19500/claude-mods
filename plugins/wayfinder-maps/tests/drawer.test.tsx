@@ -230,6 +230,7 @@ describe('band above the prompt', () => {
     await mountPane($, 'desktop')
     await band.redraw()
     expect(await band.find({ key: 'open-drawer' })).toBeDefined()
+    expect(await band.find({ text: /^Wayfinder$/ })).toBeDefined()
     expect(await band.find({ text: /1 map · 1 spec · 2 ready to take/ })).toBeDefined()
 
     await band.press({ key: 'open-drawer' })
