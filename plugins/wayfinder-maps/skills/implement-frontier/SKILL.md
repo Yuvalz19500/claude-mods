@@ -20,12 +20,12 @@ Communicate with subagents sparsely, through **context pointers** to the spec, t
 
 4. Create a branch and a draft PR for the wave. The PR closes the wave's tickets, and only those.
 
-5. Start one **implementer subagent** per wave ticket, each in its own worktree, on its own branch. Brief each one to do what `/implement` does for its single ticket: `/tdd` at pre-agreed seams where possible, typecheck and single test files regularly, the full test suite once at the end, `/code-review` on its work, then commit to its branch.
+5. Start one **implementer subagent** per wave ticket, each in its own worktree, on its own branch named `<wave branch>--<ticket number>`, so every implementer branch is findable by the wave's prefix. Brief each one to do what `/implement` does for its single ticket: `/tdd` at pre-agreed seams where possible, typecheck and single test files regularly, the full test suite once at the end, `/code-review` on its work, then commit to its branch.
 
-6. As each implementer completes, merge its branch into the wave branch with a **merger subagent**, and mark that ticket done in the tracker. Done when every wave ticket is merged and marked done.
+6. As each implementer completes, merge its branch into the wave branch with a **merger subagent**, and mark that ticket done in the tracker. Once the merge is committed, the merger **cleans up** after that implementer: `git worktree remove` on its worktree, `git branch -D` on its branch, and `git push origin --delete` on the branch if it was pushed. Done when every wave ticket is merged, marked done and cleaned up.
 
-7. Run `/code-review` on the wave branch. Fix every issue it raises in a single **implementer subagent**.
+7. Run `/code-review` on the wave branch. Fix every issue it raises in a single **implementer subagent**, cleaned up the same way once merged.
 
-8. Mark the PR ready for review, and clean up every implementer worktree.
+8. Mark the PR ready for review. Then sweep: `git worktree prune`, and confirm `git worktree list` shows no implementer worktree and `git branch -a --list '*<wave branch>--*'` shows no implementer branch, local or remote. Clean up any that remain. Done when both come back empty; the wave branch is the only branch this run leaves.
 
 9. Report the wave and stop: the PR, each ticket implemented, the tickets this wave unblocked (the next wave's frontier), and the tickets waiting on the user.
