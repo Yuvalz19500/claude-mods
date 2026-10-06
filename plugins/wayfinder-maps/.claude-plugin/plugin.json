@@ -1,0 +1,38 @@
+{
+  "name": "wayfinder-maps",
+  "version": "0.1.0",
+  "description": "A side drawer that shows every wayfinder map and spec in the project (markdown or GitHub issues), their tickets, statuses and dependency graph.",
+  "author": {
+    "name": "Yuval",
+    "url": "https://github.com/Yuvalz19500"
+  },
+  "repository": "https://github.com/Yuvalz19500/claude-mods",
+  "license": "MIT",
+  "keywords": [
+    "wayfinder",
+    "tickets",
+    "dependencies",
+    "mod"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mapPrompt": {
+      "type": "string",
+      "title": "Work-the-map prompt",
+      "description": "Prompt sent by 'Work next' on a map. {map} is the map path or issue URL.",
+      "default": "/wayfinder {map}"
+    },
+    "mapTicketPrompt": {
+      "type": "string",
+      "title": "Work-a-map-ticket prompt",
+      "description": "Prompt sent by 'Work this ticket' on a wayfinder ticket. {map}, {ticket}, {title}.",
+      "default": "/wayfinder {map} {ticket}"
+    },
+    "specTicketPrompt": {
+      "type": "string",
+      "title": "Work-a-spec-ticket prompt",
+      "description": "Prompt sent by 'Work this ticket' on an implementation (spec) ticket. {map}, {ticket}, {title}.",
+      "default": "/implement {ticket}"
+    }
+  }
+}

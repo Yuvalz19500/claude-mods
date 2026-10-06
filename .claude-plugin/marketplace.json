@@ -1,0 +1,13 @@
+{
+  "name": "claude-mods",
+  "owner": { "name": "Yuval", "url": "https://github.com/Yuvalz19500" },
+  "metadata": { "description": "Mods for Claude Code: live panes, bands and hooks built on the function-hooks plugin API." },
+  "plugins": [
+    {
+      "name": "wayfinder-maps",
+      "source": "./plugins/wayfinder-maps",
+      "description": "A side drawer showing every wayfinder map and spec in the project, their tickets, statuses and dependency graph. Markdown or GitHub issues.",
+      "category": "productivity"
+    }
+  ]
+}
