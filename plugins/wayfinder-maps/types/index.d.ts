@@ -66,6 +66,8 @@ declare module 'claude-code' {
       isPaneOpen: boolean
       view: WfView
       detail: WfDetail
+      /** Tickets a Work button opened a new chat on, by id: when. */
+      started: Record<string, number>
     }
   }
 }

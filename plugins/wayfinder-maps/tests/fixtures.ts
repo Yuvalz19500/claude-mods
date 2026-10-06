@@ -15,10 +15,10 @@ export const FILES: Record<string, string> = {
   'R/node_modules/pkg/issues/01-x.md': '# must be skipped\nStatus: open',
 }
 
-/** Every directory implied by FILES, with its entries. */
-export function dirs(): Record<string, { name: string; kind: string }[]> {
+/** Every directory implied by `files` (FILES unless given), with its entries. */
+export function dirs(files: Record<string, string> = FILES): Record<string, { name: string; kind: string }[]> {
   const out: Record<string, Map<string, string>> = {}
-  for (const path of Object.keys(FILES)) {
+  for (const path of Object.keys(files)) {
     const parts = path.split('/')
     for (let i = 1; i < parts.length; i++) {
       const dir = parts.slice(0, i).join('/')

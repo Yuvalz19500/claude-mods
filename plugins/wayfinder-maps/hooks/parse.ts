@@ -54,7 +54,7 @@ export function parseTicketFile(fileName: string, path: string, text: string): P
     const field = line.match(HEADER_FIELD)
     if (field) {
       inBlockedList = false
-      const [, key, value] = field
+      const [, key = '', value = ''] = field
       const name = key.toLowerCase()
       if (name === 'status') rawStatus = value.replace(/\*+/g, '').trim()
       else if (name === 'type') type = value.replace(/\*+/g, '').trim() || undefined
@@ -92,7 +92,7 @@ export function parseHeadDoc(text: string): { title?: string; status?: string } 
   for (const line of text.split(/\r?\n/).slice(0, 30)) {
     if (!title && /^# /.test(line)) title = cleanTitle(line, -1)
     const field = line.match(HEADER_FIELD)
-    if (field && field[1].toLowerCase() === 'status') status = field[2].replace(/\*+/g, '').trim()
+    if (field && field[1]?.toLowerCase() === 'status') status = (field[2] ?? '').replace(/\*+/g, '').trim()
   }
   return { title, status }
 }

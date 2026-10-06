@@ -1,3 +1,5 @@
 node_modules/
 .claude/types/
 *.log
+# Demo maps for screenshots, never committed
+.scratch/

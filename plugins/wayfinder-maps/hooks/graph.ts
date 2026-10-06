@@ -51,6 +51,9 @@ export function cardLayout(columns: number): { perRow: number; cardWidth: number
   return { perRow, cardWidth: Math.max(Math.min(columns, CARD_MIN), cardWidth), gap: CARD_GAP }
 }
 
+/** Rows a ticket card takes: its border, the header, the title lines and the "after" line. */
+export const cardRows = (card: { lines: readonly string[]; after: string }) => 2 + 1 + card.lines.length + (card.after ? 1 : 0)
+
 /**
  * The same graph as an indented tree: each ticket under the first ticket that
  * blocks it, later mentions as a pointer back. Rows in display order.

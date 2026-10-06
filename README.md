@@ -21,6 +21,8 @@ A side drawer for projects planned with the [`/wayfinder`](https://github.com/ma
 - **Tickets in steps.** Click a map to see its tickets as cards, set out in steps from top to bottom: each ticket sits one step below the last ticket it waits on. A card's edge takes its status's color, and an `after 17 ✓ 16 ◐` line names what it waits on. Cards fill the drawer's width and stack when it is narrow. **Tree** shows the same tickets as an indented list instead.
 - **Status chips.** `All`, `To do`, `⚑ Frontier`, `◐ Claimed`, `◷ Waiting on you`, `◌ Blocked`, `✓ Done`: each counts its tickets and, clicked, shows only them.
 - **A page per ticket.** Click a ticket to open it on its own page: its status, what it waits on and what it unblocks (each one click away), its question and answer (or the issue and its comments), **Open file** or **Open issue**, and **Work this ticket**. **← Back to map** returns to the map at that ticket.
+- **Parallel work, each ticket in a fresh chat.** **Work next: 07 ↗** opens a new chat with no context on the next ticket ready to take: in the desktop app a new session in the project's folder with the prompt filled in (press Enter to start it), in the terminal a terminal window of its own. The card then reads `new chat ↗` and **Work next** moves on to the next free ticket, so you can fan out one click at a time.
+- **Specs in waves, or whole.** On a spec, **Implement frontier · 5 ↗** opens a new chat on this plugin's `/wayfinder-maps:implement-frontier` skill: it builds the tickets ready now with parallel subagents (each in its own worktree, merged into one draft PR, code-reviewed), then stops, so you can check the work and answer what waits on you before the next wave. **Implement spec ↗** runs Matt Pocock's `/implement-spec`, which keeps going wave after wave until the whole spec is done.
 - **Follows your theme.** Everything is drawn with the app's own elements, light or dark; the only color it adds is each status's.
 
 **Where it looks**
@@ -36,13 +38,16 @@ The drawer refreshes after every turn and every 30 seconds while it's open. GitH
 
 **Settings**
 
-The prompts the buttons send can be changed under `/config` (or `pluginConfigs` in settings):
+Where the Work buttons work, and the prompts they send, can be changed under `/config` (or `pluginConfigs` in settings):
 
 | Option | Default |
 | --- | --- |
+| `workIn` | `new-chat`: a new chat with no context (a new app session on the desktop, a terminal window in the terminal). `terminal`: always a terminal window. `here`: this chat. |
 | `mapPrompt` | `/mattpocock-skills:wayfinder {map}` |
 | `mapTicketPrompt` | `/mattpocock-skills:wayfinder {map} {ticket}` |
 | `specTicketPrompt` | `/mattpocock-skills:implement {ticket}` |
+| `specPrompt` | `/mattpocock-skills:implement-spec {map}` |
+| `frontierPrompt` | `/wayfinder-maps:implement-frontier {map}` |
 
 `{map}` is the map's path or issue URL, `{ticket}` the ticket's path or issue URL, `{title}` its title. A prompt starting with `/` runs as that slash command; anything else is sent as a message.
 

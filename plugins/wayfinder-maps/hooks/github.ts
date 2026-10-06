@@ -87,7 +87,7 @@ function toTicket(issue: GhIssue): ParsedTicketFile & { closedAs?: WfStatus } {
 
 /** Loads every `wayfinder:map` issue of the repo with its sub-issues and blocking edges. */
 export async function loadGithubMaps(io: Io, root: string, repo: string): Promise<{ maps: WfMap[]; error?: string }> {
-  const [owner, name] = repo.split('/')
+  const [owner = '', name = ''] = repo.split('/')
   const r = await gh(io, root, ['api', 'graphql', '-f', `query=${MAPS_QUERY}`, '-F', `owner=${owner}`, '-F', `name=${name}`])
   if (!r.ok) return { maps: [], error: `GitHub: ${(r.err || r.out).trim().split('\n')[0]}` }
   const issues: GhIssue[] = JSON.parse(r.out).data?.repository?.issues?.nodes ?? []

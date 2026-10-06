@@ -1,6 +1,6 @@
 {
   "name": "wayfinder-maps",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "A side drawer that shows every wayfinder map and spec in the project (markdown or GitHub issues), their tickets, statuses and dependencies.",
   "author": {
     "name": "Yuval",
@@ -16,23 +16,42 @@
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
+    "workIn": {
+      "type": "string",
+      "title": "Where Work buttons work",
+      "description": "new-chat: a new chat with no context (a new session in the desktop app, a terminal window from the terminal). terminal: always a terminal window that starts at once. here: this chat.",
+      "options": ["new-chat", "terminal", "here"],
+      "default": "new-chat"
+    },
     "mapPrompt": {
       "type": "string",
       "title": "Work-the-map prompt",
-      "description": "Prompt sent by 'Work next' on a map. {map} is the map path or issue URL.",
+      "description": "Prompt for 'Work the map', on a map with no ticket ready to take. {map} is the map path or issue URL.",
       "default": "/mattpocock-skills:wayfinder {map}"
     },
     "mapTicketPrompt": {
       "type": "string",
       "title": "Work-a-map-ticket prompt",
-      "description": "Prompt sent by 'Work this ticket' on a wayfinder ticket. {map}, {ticket}, {title}.",
+      "description": "Prompt for 'Work next' and 'Work this ticket' on a wayfinder ticket. {map}, {ticket}, {title}.",
       "default": "/mattpocock-skills:wayfinder {map} {ticket}"
     },
     "specTicketPrompt": {
       "type": "string",
       "title": "Work-a-spec-ticket prompt",
-      "description": "Prompt sent by 'Work this ticket' on an implementation (spec) ticket. {map}, {ticket}, {title}.",
+      "description": "Prompt for 'Work this ticket' on an implementation (spec) ticket. {map}, {ticket}, {title}.",
       "default": "/mattpocock-skills:implement {ticket}"
+    },
+    "specPrompt": {
+      "type": "string",
+      "title": "Implement-the-spec prompt",
+      "description": "Prompt for 'Implement spec': the whole spec, its frontier tickets built by parallel subagents. {map} is the spec path or issue URL.",
+      "default": "/mattpocock-skills:implement-spec {map}"
+    },
+    "frontierPrompt": {
+      "type": "string",
+      "title": "Implement-the-frontier prompt",
+      "description": "Prompt for 'Implement frontier': one wave, the spec's frontier tickets built by parallel subagents, then stop. {map} is the spec path or issue URL.",
+      "default": "/wayfinder-maps:implement-frontier {map}"
     }
   }
 }
