@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { appChat, appLink, cliLink, openLink, terminalChat } from '../hooks/launch'
+import { appChat, appLink, cliLink, handoffText, handoffToken, openLink, terminalChat } from '../hooks/launch'
 
 const PROMPT = '/mattpocock-skills:wayfinder .scratch/orbit/map.md .scratch/orbit/issues/07-pricing.md'
 const ROOT = 'C:\\Users\\me\\orbit'
@@ -25,6 +25,15 @@ describe('links', () => {
     expect(openLink('claude://x', 'windows')).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler', 'claude://x'])
     expect(openLink('claude://x', 'mac')).toEqual(['open', 'claude://x'])
     expect(openLink('claude://x', 'linux')).toEqual(['xdg-open', 'claude://x'])
+  })
+})
+
+describe('handoff text', () => {
+  test('plain words and a token, with no slash for the app to neuter', () => {
+    const text = handoffText('work ticket 24 (Sync docs) of Cruxel', 'a1b2c3d4')
+    expect(text).toBe('Wayfinder: work ticket 24 (Sync docs) of Cruxel [wf-a1b2c3d4]')
+    expect(handoffToken(text)).toBe('a1b2c3d4')
+    expect(handoffToken('/mattpocock-skills:wayfinder map.md')).toBeNull()
   })
 })
 

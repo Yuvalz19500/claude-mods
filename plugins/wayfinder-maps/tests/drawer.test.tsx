@@ -34,8 +34,17 @@ function fakeHost(on: any, { os = 'Windows_NT', files = FILES }: { os?: string; 
   const sent: string[] = []
   const runs: Run[] = []
   let now = 1_000
+  // The plugin's store, shared by every session: where a Work link leaves its prompt.
+  const store = new Map<string, unknown>()
+  on('store.get', ($: unknown, e: { key: string }) => ({ value: store.get(e.key) }))
+  on('store.set', ($: unknown, e: { key: string; value: unknown }) => {
+    store.set(e.key, e.value)
+    return { value: undefined }
+  })
   on('session.root', () => ({ value: 'R' }))
   on('clock.now', () => ({ value: (now += 1000) }))
+  // A timer's wait ends at once: its callback runs.
+  on('clock.after', () => ({ value: undefined }))
   on('env.get', ($: unknown, e: { name: string }) => ({ value: e.name === 'OS' ? os : undefined }))
   on('fs.list', ($: unknown, e: { path: string }) => ({
     value: (d[fake(e.path)] ?? []).map(x => ({ ...x, size: 0, mtimeMs: 0, isLink: false })),
@@ -55,19 +64,26 @@ function fakeHost(on: any, { os = 'Windows_NT', files = FILES }: { os?: string; 
     const { Box } = $.ui.resolve(e)
     return <Box />
   })
+  // The engine's own prompt.submit at the bottom: the prompt enters as typed.
+  on('prompt.submit', ($: unknown, e: { text: string }) => ({ text: e.text }))
   on('command.run', ($: unknown, e: { command: string; args: string }) => {
     sent.push(`/${e.command} ${e.args}`.trim())
     return { text: '' }
   })
   /** The commands that opened new chats (uname, asked once, aside). */
   const chats = () => runs.filter(r => r.argv[0] !== 'uname')
-  return { sent, runs, chats }
-}
-
-/** The prompt a new chat was opened on: the last argument, or the link's `q`. */
-const promptOf = (r: Run) => {
-  const last = r.argv.at(-1)!
-  return /^claude(-cli)?:/.test(last) ? new URL(last).searchParams.get('q') : last
+  /** What a new chat's box was filled with: the last argument, or the link's `q`. */
+  const filled = (r: Run) => {
+    const last = r.argv.at(-1)!
+    return /^claude(-cli)?:/.test(last) ? new URL(last).searchParams.get('q')! : last
+  }
+  /** The prompt a new chat runs: what it was filled with, or the prompt its token was left under. */
+  const promptOf = (r: Run) => {
+    const token = filled(r).match(/\[wf-(\w+)\]/)?.[1]
+    const left = (store.get('handoffs') as { token: string; prompt: string }[] | undefined) ?? []
+    return token ? (left.find(h => h.token === token)?.prompt ?? `(no handoff ${token})`) : filled(r)
+  }
+  return { sent, runs, chats, filled, promptOf }
 }
 
 const keys = async (ui: { findAll: (q: object) => Promise<{ key?: string }[]> }) =>
@@ -259,7 +275,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
       await clickCard(ui, STORE)
       await ui.press({ key: `work:${STORE}` })
       expect(host.sent).toEqual([])
-      expect(host.chats().map(promptOf)).toEqual([
+      expect(host.chats().map(host.promptOf)).toEqual([
         '/mattpocock-skills:wayfinder .scratch/design/map.md .scratch/design/issues/02-direction.md',
         '/mattpocock-skills:wayfinder .scratch/design/map.md .scratch/design/issues/03-shell.md',
         '/wayfinder-maps:implement-frontier .scratch/build/spec.md',
@@ -272,6 +288,8 @@ for (const surface of ['desktop', 'terminal'] as const) {
         expect(first.argv.slice(0, 2)).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler'])
         expect(first.argv[2]!.startsWith('claude://code/new?')).toBe(true)
         expect(new URL(first.argv[2]!).searchParams.get('folder')).toBe('R')
+        // The app neuters a slash command in a link: the box gets plain words and a token.
+        expect(host.filled(first)).toMatch(/^Wayfinder: work ticket 02 \(Visual direction\) of .* \[wf-\w+\]$/)
       } else {
         // A terminal window of its own, running claude in the project.
         expect(first.argv.slice(0, 6)).toEqual(['cmd.exe', '/d', '/c', 'start', 'Wayfinder 02', 'claude'])
@@ -302,6 +320,42 @@ for (const surface of ['desktop', 'terminal'] as const) {
     })
   })
 }
+
+describe('the new chat a Work link opened', () => {
+  /** The person pressing Enter on `text` in a chat's prompt box. */
+  const enter = ($: any, text: string) => $.prompt.submit({ text, wait: false, origin: { kind: 'composer' } })
+
+  test('Enter on the filled-in text runs the real command, once', async ($, on) => {
+    const host = fakeHost(on)
+    const ui = await mountPane($, 'desktop')
+    await ui.press({ key: MAP })
+    await ui.press({ key: 'work-next' })
+    const text = host.filled(host.chats()[0]!)
+
+    const first = await enter($, text)
+    expect(first.drop).toMatch(/running \/mattpocock-skills:wayfinder/)
+    // The command runs on a timer, once the submission is dropped.
+    const tick = () => new Promise(r => (globalThis as any).setTimeout(r, 5))
+    for (let i = 0; i < 100 && host.sent.length === 0; i++) await tick()
+    expect(host.sent).toEqual(['/mattpocock-skills:wayfinder .scratch/design/map.md .scratch/design/issues/02-direction.md'])
+
+    // The token is spent: the same text again is an ordinary prompt.
+    const again = await enter($, text)
+    expect(again.drop).toBeUndefined()
+    expect(host.sent).toHaveLength(1)
+  })
+
+  test('a token nobody left, or a prompt from a plugin, is an ordinary prompt', async ($, on) => {
+    const host = fakeHost(on)
+    const ui = await mountPane($, 'desktop')
+    await ui.press({ key: MAP })
+    await ui.press({ key: 'work-next' })
+    expect((await enter($, 'Wayfinder: work ticket 99 [wf-zzzzzzzz]')).drop).toBeUndefined()
+    const text = host.filled(host.chats()[0]!)
+    expect((await $.prompt.submit({ text, wait: false, origin: { kind: 'plugin', name: 'other' } } as any)).drop).toBeUndefined()
+    expect(host.sent).toEqual([])
+  })
+})
 
 describe('new chats on macOS', () => {
   test('from the terminal, Work next opens the terminal link, its prompt ready to send', async ($, on) => {
