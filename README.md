@@ -38,7 +38,7 @@ The Work buttons run Matt Pocock's skills, so install his `mattpocock-skills` pl
 
 **Working the tickets**
 
-Every Work button opens a **new chat with no context**, so free tickets can be worked in parallel: in the desktop app, a new session in the project's folder with a line like `Wayfinder: work ticket 24 (…) [wf-…]` filled in: press Enter and the mod runs the right slash command in that chat (the app won't let a link fill in a slash command itself); in the terminal, a terminal window of its own. `↗` on a button means it opens a new chat; set `workIn` to `here` to work in the current chat instead (the buttons then show `→`).
+Every Work button opens a **new chat with no context**, so free tickets can be worked in parallel: in the desktop app, a new session in the project's folder with the prompt filled in (press Enter to start it); in the terminal, a terminal window of its own. `↗` on a button means it opens a new chat; set `workIn` to `here` to work in the current chat instead (the buttons then show `→`).
 
 | Where | Button | What it does |
 | --- | --- | --- |

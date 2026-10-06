@@ -6,7 +6,7 @@ import type { CardProps } from './card'
 import { ClickGate } from './clicks'
 import { githubIssueBody, githubRepo, loadGithubMaps } from './github'
 import { STATUS_STYLE, cardLayout, cardRows, dependents, layers, treeRows } from './graph'
-import { appChat, handoffText, handoffToken, terminalChat } from './launch'
+import { appChat, terminalChat } from './launch'
 import type { Launch, Platform } from './launch'
 import { loadMarkdownMaps, readText } from './markdown'
 import { counts } from './parse'
@@ -248,45 +248,10 @@ async function platformOf($: EngineInterface): Promise<Platform> {
   return platform
 }
 
-/**
- * A prompt waiting for the new chat a link opened: kept in the plugin's store,
- * which every session shares, until that chat trades in its token.
- */
-type Handoff = { token: string; prompt: string; root: string; at: number }
-const HANDOFF = 'handoffs'
-const HANDOFF_MS = 60 * 60_000
-
-async function readHandoffs($: EngineInterface, now: number): Promise<Handoff[]> {
-  const stored = await $.store.get(HANDOFF)
-  return (Array.isArray(stored) ? (stored as Handoff[]) : []).filter(h => h && h.at > now - HANDOFF_MS)
-}
-
-/** Leaves `prompt` for a new chat to pick up; the token goes in the link. */
-async function leaveHandoff($: EngineInterface, prompt: string, root: string): Promise<string> {
-  const now = await $.clock.now()
-  const token = Math.random().toString(36).slice(2, 10).padEnd(8, '0')
-  await $.store.set(HANDOFF, [...(await readHandoffs($, now)), { token, prompt, root, at: now }])
-  return token
-}
-
-/** The prompt left under `token`, taken so it runs once; null when none. */
-async function takeHandoff($: EngineInterface, token: string): Promise<Handoff | null> {
-  const all = await readHandoffs($, await $.clock.now())
-  const found = all.find(h => h.token === token) ?? null
-  if (found) await $.store.set(HANDOFF, all.filter(h => h !== found))
-  return found
-}
-
-async function runCommand($: EngineInterface, command: string, args: string) {
-  await $.command.run({ command, args })
-}
-
 /** Opens one new chat on `prompt`: what was run, or null when the host could not run it. */
-async function openChat($: EngineInterface, how: 'app' | 'terminal', prompt: string, root: string, title: string, what: string) {
+async function openChat($: EngineInterface, how: 'app' | 'terminal', prompt: string, root: string, title: string) {
   const p = await platformOf($)
-  // A link's prompt reaches the new chat as plain words and a token (see handoffText).
-  const linkText = how === 'app' || p !== 'windows' ? handoffText(what, await leaveHandoff($, prompt, root)) : prompt
-  const launch: Launch = how === 'app' ? appChat(linkText, root, p) : terminalChat(prompt, root, title, p, linkText)
+  const launch: Launch = how === 'app' ? appChat(prompt, root, p) : terminalChat(prompt, root, title, p)
   const r = await $.process.run(launch.argv, { cwd: launch.cwd ?? root, timeoutMs: 15_000 }).catch(() => null)
   return r?.exitCode === 0 ? launch : null
 }
@@ -319,12 +284,7 @@ async function work($: EngineInterface, map: WfMap, ticket: WfTicket | null, wav
     return
   }
   const name = ticket ? ticket.ref : wave.length > 0 ? `the frontier (${wave.map(t => t.ref).join(' ')})` : `the ${map.kind}`
-  const what = ticket
-    ? `work ticket ${ticket.ref} (${ticket.title}) of ${map.title}`
-    : wave.length > 0
-      ? `implement the frontier (${wave.map(t => t.ref).join(', ')}) of ${map.title}`
-      : `${map.kind === 'spec' ? 'implement' : 'work'} ${map.title}`
-  const opened = await openChat($, how, text, root, `Wayfinder ${ticket?.ref ?? map.kind}`, what)
+  const opened = await openChat($, how, text, root, `Wayfinder ${ticket?.ref ?? map.kind}`)
   if (!opened) {
     $.ui.toast(`Could not open a new chat. Its prompt: ${text}`, { timeoutMs: 10_000 })
     return
@@ -792,20 +752,6 @@ export const register: Register = (on, options) => {
     if (!handlers.has(e.element)) return next(e)
     if (!gate.press(e.element, await $.clock.now())) return { element: e.element }
     return next(e)
-  })
-
-  // A chat a Work link opened: the person's Enter on the filled-in text trades its token for the real command.
-  on('prompt.submit', async ($, e, next) => {
-    const token = handoffToken(e.text)
-    const isPerson = e.origin.kind === 'composer' || e.origin.kind === 'bridge' || e.origin.kind === 'sdk'
-    if (!token || !isPerson) return next(e)
-    const handoff = await takeHandoff($, token)
-    if (!handoff) return next(e)
-    const slash = handoff.prompt.match(/^\/(\S+)\s*([\s\S]*)$/)
-    if (!slash) return next({ ...e, text: handoff.prompt })
-    // `command.run` refuses inside a hook a turn waits on: a timer runs it once this submission is dropped.
-    $.clock.after(0, () => void runCommand($, slash[1]!, slash[2] ?? ''))
-    return { drop: `Wayfinder: running ${handoff.prompt}` }
   })
 
   // A ticket card (card.tsx) posts `{ open: id }` when clicked anywhere.
