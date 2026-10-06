@@ -15,6 +15,7 @@ const POLL_MS = 30_000
 
 const data = atom({ plugin: 'wayfinder-maps', key: 'data' } as const, null)
 const isLoading = atom({ plugin: 'wayfinder-maps', key: 'isLoading' } as const, false)
+const isPaneOpen = atom({ plugin: 'wayfinder-maps', key: 'isPaneOpen' } as const, false)
 const view = atom({ plugin: 'wayfinder-maps', key: 'view' } as const, { mapId: null, selected: null, filter: 'all' } as WfView)
 const detail = atom({ plugin: 'wayfinder-maps', key: 'detail' } as const, null as WfDetail)
 
@@ -101,6 +102,12 @@ async function refresh($: EngineInterface, github: boolean) {
   }
 }
 
+async function openDrawer($: EngineInterface) {
+  await $.ui.open({ id: PANE, title: TITLE })
+  await update($, isPaneOpen, () => true)
+  void refresh($, true)
+}
+
 async function pollIfOpen($: EngineInterface, github: boolean) {
   const isOpen = (await $.ui.panes()).some(p => p.id === PANE)
   if (isOpen) await refresh($, github)
@@ -145,13 +152,49 @@ export const register: Register = (on, options) => {
       description: 'Open the Wayfinder drawer: every map and spec in this project, their tickets and dependencies',
     })
     $.clock.every(POLL_MS, () => void pollIfOpen($, false))
+    // A first scan in the background, so the band can offer the drawer in a wayfinder project.
+    $.clock.after(500, () => void refresh($, false))
     return next(e)
   })
 
   on('command.run', { command: 'wayfinder-maps' }, async $ => {
-    await $.ui.open({ id: PANE, title: TITLE })
-    void refresh($, true)
+    await openDrawer($)
     return { text: 'Wayfinder drawer opened.' }
+  })
+
+  on('ui.close', async ($, e, next) => {
+    const result = await next(e)
+    if (e.id === PANE) await update($, isPaneOpen, () => false)
+    return result
+  })
+
+  // The band above the prompt: shown only where the project has maps, and only while the drawer is closed.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const d = await read($, data)
+    const open = await read($, isPaneOpen)
+    if (e.props.hasSurvey || open || !d || d.maps.length === 0) return next(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    const live = d.maps.filter(m => m.status !== 'done' && m.status !== 'graduated')
+    const all = live.flatMap(m => m.tickets)
+    const frontier = all.filter(t => t.isFrontier).length
+    const waiting = all.filter(t => t.status === 'waiting').length
+    const maps = d.maps.filter(m => m.kind === 'map').length
+    const specs = d.maps.length - maps
+    const summary = [
+      maps ? `${maps} map${maps === 1 ? '' : 's'}` : '',
+      specs ? `${specs} spec${specs === 1 ? '' : 's'}` : '',
+      frontier ? `${frontier} ready to take` : '',
+      waiting ? `${waiting} waiting on you` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    return (
+      <Box flexDirection="row" gap={1}>
+        <Text color={STATUS_STYLE.open.fill}>⚑</Text>
+        <Text dimColor>{summary}</Text>
+        <Button key="open-drawer" label="Open map drawer" plain onPress={() => void openDrawer($)} />
+      </Box>
+    )
   })
 
   on('turn.complete', async ($, e, next) => {

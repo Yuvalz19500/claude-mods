@@ -58,6 +58,7 @@ declare module 'claude-code' {
     'wayfinder-maps': {
       data: WfData | null
       isLoading: boolean
+      isPaneOpen: boolean
       view: WfView
       detail: WfDetail
     }

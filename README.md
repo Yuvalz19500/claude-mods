@@ -15,6 +15,7 @@ claude plugin install wayfinder-maps@claude-mods
 
 A side drawer for projects planned with the [`/wayfinder`](https://github.com/mattpocock/skills) skill. Run `/wayfinder-maps` to open it.
 
+- **Shows up when you need it.** In a project with wayfinder maps, a slim band above the prompt sums up what is ready to take and what is waiting on you, with an **Open map drawer** button. It stays out of the way everywhere else.
 - **Every map in the project.** Each map shows its status (open, in progress, done, graduated to a spec), how many tickets are done, and how many are frontier, claimed, waiting on you or blocked.
 - **Maps and specs.** Wayfinder maps hold decision tickets. Graduated specs (a `spec.md` beside numbered implementation tickets) appear in their own section and are drawn the same way.
 - **A trail map of the tickets.** Click a map to see its dependency graph. Tickets are set out in steps, each one below the tickets that block it. Trails stay solid while a blocker is still open and turn dotted once it's done. Frontier tickets (open, unblocked, unclaimed) carry an orange pennant.

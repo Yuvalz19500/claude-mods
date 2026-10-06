@@ -1,6 +1,6 @@
 {
   "name": "wayfinder-maps",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A side drawer that shows every wayfinder map and spec in the project (markdown or GitHub issues), their tickets, statuses and dependency graph.",
   "author": {
     "name": "Yuval",
