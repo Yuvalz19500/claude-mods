@@ -1,16 +1,16 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { appChat, appLink, cliLink, openLink, terminalChat } from '../hooks/launch'
+import { appChat, appLink, clipboardArgv, cliLink, openLink, pasteKeys, terminalChat } from '../hooks/launch'
 
 const PROMPT = '/mattpocock-skills:wayfinder .scratch/orbit/map.md .scratch/orbit/issues/07-pricing.md'
 const ROOT = 'C:\\Users\\me\\orbit'
 
 describe('links', () => {
-  test('the desktop app link carries the prompt and the folder, encoded', () => {
-    const url = new URL(appLink(PROMPT, ROOT))
+  test('the desktop app link opens the project folder and carries no prompt', () => {
+    const url = new URL(appLink(ROOT))
     expect(url.protocol).toBe('claude:')
-    expect(url.searchParams.get('q')).toBe(PROMPT)
     expect(url.searchParams.get('folder')).toBe(ROOT)
+    expect(url.searchParams.has('q')).toBe(false)
   })
 
   test('the terminal link carries the prompt and the working directory', () => {
@@ -29,10 +29,10 @@ describe('links', () => {
 })
 
 describe('new chats', () => {
-  test('in the app: a new session with the prompt filled in', () => {
-    const l = appChat(PROMPT, ROOT, 'windows')
+  test('in the app: a new, empty session in the project', () => {
+    const l = appChat(ROOT, 'windows')
     expect(l.startsAtOnce).toBe(false)
-    expect(l.argv[2]).toBe(appLink(PROMPT, ROOT))
+    expect(l.argv).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler', appLink(ROOT)])
   })
 
   test('in a terminal on Windows: a window of its own running claude on the prompt', () => {
@@ -54,5 +54,18 @@ describe('new chats', () => {
     const l = terminalChat(PROMPT, '/home/me/orbit', 'Wayfinder 07', 'mac')
     expect(l.argv[0]).toBe('open')
     expect(l.argv[1]).toBe(cliLink(PROMPT, '/home/me/orbit'))
+  })
+})
+
+describe('the clipboard', () => {
+  test("each system's own tool, reading stdin", () => {
+    expect(clipboardArgv('windows')).toEqual(['clip.exe'])
+    expect(clipboardArgv('mac')).toEqual(['pbcopy'])
+    expect(clipboardArgv('linux')[0]).toBe('sh')
+  })
+
+  test('the paste keys as the keyboard spells them', () => {
+    expect(pasteKeys('windows')).toBe('Ctrl+V')
+    expect(pasteKeys('mac')).toBe('⌘V')
   })
 })

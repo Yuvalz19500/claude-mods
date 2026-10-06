@@ -55,6 +55,9 @@ export type WfView = {
   layout: WfLayout
 }
 
+/** The command a Work button copied for a new chat, whether it reached the clipboard, and the paste keys. */
+export type WfCopied = { text: string; isCopied: boolean; keys: string } | null
+
 /** The open ticket body as the drawer shows it, and the file links in it. */
 export type WfDetail = { id: string; body: string; links: { href: string; path: string }[] } | null
 
@@ -68,6 +71,7 @@ declare module 'claude-code' {
       detail: WfDetail
       /** Tickets a Work button opened a new chat on, by id: when. */
       started: Record<string, number>
+      copied: WfCopied
     }
   }
 }

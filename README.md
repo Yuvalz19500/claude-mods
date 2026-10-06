@@ -38,7 +38,7 @@ The Work buttons run Matt Pocock's skills, so install his `mattpocock-skills` pl
 
 **Working the tickets**
 
-Every Work button opens a **new chat with no context**, so free tickets can be worked in parallel: in the desktop app, a new session in the project's folder with the prompt filled in (press Enter to start it); in the terminal, a terminal window of its own. `↗` on a button means it opens a new chat; set `workIn` to `here` to work in the current chat instead (the buttons then show `→`).
+Every Work button works in a **new chat with no context**, so free tickets can be worked in parallel. In the desktop app it copies the command, says so in a toast, and opens a new session in the project's folder: paste (Ctrl+V, ⌘V on a Mac) and press Enter. The app won't let anything run a command in a new chat for you, so the paste is yours. In the terminal, a terminal window of its own runs the command at once. `↗` on a button means it opens a new chat; set `workIn` to `here` to work in the current chat instead (the buttons then show `→`).
 
 | Where | Button | What it does |
 | --- | --- | --- |
@@ -74,7 +74,7 @@ Where the Work buttons work, and the prompts they send, can be changed under `/c
 
 | Option | Default |
 | --- | --- |
-| `workIn` | `new-chat`: a new chat with no context (a new app session on the desktop, a terminal window in the terminal). `terminal`: always a terminal window. `here`: this chat. |
+| `workIn` | `new-chat`: a new chat with no context (on the desktop, the command copied and a new session opened in the project; in the terminal, a window of its own). `here`: this chat. |
 | `mapPrompt` | `/mattpocock-skills:wayfinder {map}` |
 | `mapTicketPrompt` | `/mattpocock-skills:wayfinder {map} {ticket}` |
 | `specTicketPrompt` | `/mattpocock-skills:implement {ticket}` |

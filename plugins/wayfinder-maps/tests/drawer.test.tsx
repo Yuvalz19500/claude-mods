@@ -23,32 +23,47 @@ const fake = (path: string) => {
 const AUDIENCE = 'R/.scratch/design/issues/06-audience.md'
 const MORE: Record<string, string> = { [AUDIENCE]: '# Who is it for?\n\nType: grilling\nStatus: open\n\n## Question\n\nWho?' }
 
-type Run = { argv: string[]; cwd?: string }
+type Run = { argv: string[]; cwd?: string; stdin?: string }
 
 /**
  * Answers the host calls the drawer makes, from the fake project in fixtures,
- * on Windows unless `os` says otherwise. `runs` keeps every command but gh.
+ * on Windows unless `os` says otherwise. `runs` keeps every command but gh,
+ * `copies` what reached the surface's clipboard (`canCopy` false: it refuses).
  */
-function fakeHost(on: any, { os = 'Windows_NT', files = FILES }: { os?: string; files?: Record<string, string> } = {}) {
+function fakeHost(
+  on: any,
+  { os = 'Windows_NT', files = FILES, canCopy = true }: { os?: string; files?: Record<string, string>; canCopy?: boolean } = {},
+) {
   const d = dirs(files)
   const sent: string[] = []
   const runs: Run[] = []
+  const copies: string[] = []
+  const toasts: string[] = []
   let now = 1_000
   on('session.root', () => ({ value: 'R' }))
   on('clock.now', () => ({ value: (now += 1000) }))
+  on('clock.sleep', () => ({ value: undefined }))
+  on('ui.copy', ($: unknown, e: { text: string }) => {
+    if (!canCopy) return { value: { isCopied: false, reason: 'no-clipboard' } }
+    copies.push(e.text)
+    return { value: { isCopied: true } }
+  })
   on('env.get', ($: unknown, e: { name: string }) => ({ value: e.name === 'OS' ? os : undefined }))
   on('fs.list', ($: unknown, e: { path: string }) => ({
     value: (d[fake(e.path)] ?? []).map(x => ({ ...x, size: 0, mtimeMs: 0, isLink: false })),
   }))
   on('fs.read', ($: unknown, e: { path: string }) => ({ value: files[fake(e.path)] ?? '' }))
-  on('process.run', ($: unknown, e: { argv: string[]; init?: { cwd?: string } }) => {
+  on('process.run', ($: unknown, e: { argv: string[]; init?: { cwd?: string; stdin?: string } }) => {
     if (e.argv[0] === 'gh' || e.argv[0] === 'git') return { value: { exitCode: 1, stdout: '', stderr: 'not a GitHub repo' } }
-    runs.push({ argv: [...e.argv], cwd: e.init?.cwd })
+    runs.push({ argv: [...e.argv], cwd: e.init?.cwd, stdin: e.init?.stdin })
     return { value: { exitCode: 0, stdout: e.argv[0] === 'uname' ? 'Darwin\n' : '', stderr: '' } }
   })
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
-  on('ui.toast', () => ({ value: undefined }))
+  on('ui.toast', ($: unknown, e: { text: string }) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
   on('ui.scroll', () => ({ value: {} }))
   // What the engine draws in the band when no plugin draws there.
   on('ui.render', { component: 'AbovePrompt' }, ($: any, e: any) => {
@@ -59,9 +74,9 @@ function fakeHost(on: any, { os = 'Windows_NT', files = FILES }: { os?: string; 
     sent.push(`/${e.command} ${e.args}`.trim())
     return { text: '' }
   })
-  /** The commands that opened new chats (uname, asked once, aside). */
-  const chats = () => runs.filter(r => r.argv[0] !== 'uname')
-  return { sent, runs, chats }
+  /** The commands that opened new chats (uname and the clipboard tool aside). */
+  const chats = () => runs.filter(r => r.argv[0] !== 'uname' && r.argv[0] !== 'clip.exe')
+  return { sent, runs, chats, copies, toasts }
 }
 
 /** The prompt a new chat was opened on: the last argument, or the link's `q`. */
@@ -259,20 +274,23 @@ for (const surface of ['desktop', 'terminal'] as const) {
       await clickCard(ui, STORE)
       await ui.press({ key: `work:${STORE}` })
       expect(host.sent).toEqual([])
-      expect(host.chats().map(promptOf)).toEqual([
+      const prompts = [
         '/mattpocock-skills:wayfinder .scratch/design/map.md .scratch/design/issues/02-direction.md',
         '/mattpocock-skills:wayfinder .scratch/design/map.md .scratch/design/issues/03-shell.md',
         '/wayfinder-maps:implement-frontier .scratch/build/spec.md',
         '/mattpocock-skills:implement-spec .scratch/build/spec.md',
         '/mattpocock-skills:implement .scratch/build/issues/02-store.md',
-      ])
+      ]
       const first = host.chats()[0]!
       if (surface === 'desktop') {
-        // A new session in the app, in the project's folder.
-        expect(first.argv.slice(0, 2)).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler'])
-        expect(first.argv[2]!.startsWith('claude://code/new?')).toBe(true)
-        expect(new URL(first.argv[2]!).searchParams.get('folder')).toBe('R')
+        // Each command copied, then an empty new session opened in the project's folder, to paste it in.
+        expect(host.copies).toEqual(prompts)
+        expect(host.chats()).toHaveLength(prompts.length)
+        expect(first.argv).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler', 'claude://code/new?folder=R'])
+        expect(host.toasts[0]).toMatch(/^Copied \/mattpocock-skills:wayfinder .*paste it \(Ctrl\+V\) and press Enter/)
       } else {
+        expect(host.chats().map(promptOf)).toEqual(prompts)
+        expect(host.copies).toEqual([])
         // A terminal window of its own, running claude in the project.
         expect(first.argv.slice(0, 6)).toEqual(['cmd.exe', '/d', '/c', 'start', 'Wayfinder 02', 'claude'])
         expect(fake(first.cwd ?? '')).toBe('R')
@@ -302,6 +320,39 @@ for (const surface of ['desktop', 'terminal'] as const) {
     })
   })
 }
+
+describe('copying for the new desktop chat', () => {
+  test('the drawer says what it copied and how to paste it', async ($, on) => {
+    fakeHost(on)
+    const ui = await mountPane($, 'desktop')
+    await ui.press({ key: MAP })
+    await ui.press({ key: 'work-next' })
+    expect(await ui.find({ text: /✓ Copied \/mattpocock-skills:wayfinder .*paste it in the new chat \(Ctrl\+V\)/ })).toBeDefined()
+    // Gone once the person moves on.
+    await ui.press({ key: 'back' })
+    await ui.press({ key: MAP })
+    expect(await ui.find({ text: /✓ Copied/ })).toBeUndefined()
+  })
+
+  test("where the surface takes no copy, the system's clipboard tool does", async ($, on) => {
+    const host = fakeHost(on, { canCopy: false })
+    const ui = await mountPane($, 'desktop')
+    await ui.press({ key: MAP })
+    await ui.press({ key: 'work-next' })
+    const clip = host.runs.find(r => r.argv[0] === 'clip.exe')
+    expect(clip?.stdin).toBe('/mattpocock-skills:wayfinder .scratch/design/map.md .scratch/design/issues/02-direction.md')
+    expect(await ui.find({ text: /✓ Copied/ })).toBeDefined()
+  })
+
+  test('on a Mac the paste keys read ⌘V', async ($, on) => {
+    const host = fakeHost(on, { os: '' })
+    const ui = await mountPane($, 'desktop')
+    await ui.press({ key: MAP })
+    await ui.press({ key: 'work-next' })
+    expect(host.toasts[0]).toMatch(/paste it \(⌘V\)/)
+    expect(host.chats()[0]!.argv).toEqual(['open', 'claude://code/new?folder=R'])
+  })
+})
 
 describe('new chats on macOS', () => {
   test('from the terminal, Work next opens the terminal link, its prompt ready to send', async ($, on) => {

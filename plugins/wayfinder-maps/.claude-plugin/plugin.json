@@ -1,6 +1,6 @@
 {
   "name": "wayfinder-maps",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "A side drawer that shows every wayfinder map and spec in the project (markdown or GitHub issues), their tickets, statuses and dependencies.",
   "author": {
     "name": "Yuval",
@@ -19,8 +19,8 @@
     "workIn": {
       "type": "string",
       "title": "Where Work buttons work",
-      "description": "new-chat: a new chat with no context (a new session in the desktop app, a terminal window from the terminal). terminal: always a terminal window that starts at once. here: this chat.",
-      "options": ["new-chat", "terminal", "here"],
+      "description": "new-chat: a new chat with no context. On the desktop the command is copied and a new session opens in this project, to paste it in; in the terminal a window of its own runs it. here: this chat.",
+      "options": ["new-chat", "here"],
       "default": "new-chat"
     },
     "mapPrompt": {

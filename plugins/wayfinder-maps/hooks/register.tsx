@@ -1,12 +1,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { WfData, WfDetail, WfFilter, WfLayout, WfMap, WfTicket, WfView } from '../types'
+import type { WfCopied, WfData, WfDetail, WfFilter, WfLayout, WfMap, WfTicket, WfView } from '../types'
 import type { CardProps } from './card'
 import { ClickGate } from './clicks'
 import { githubIssueBody, githubRepo, loadGithubMaps } from './github'
 import { STATUS_STYLE, cardLayout, cardRows, dependents, layers, treeRows } from './graph'
-import { appChat, terminalChat } from './launch'
+import { appChat, clipboardArgv, pasteKeys, terminalChat } from './launch'
 import type { Launch, Platform } from './launch'
 import { loadMarkdownMaps, readText } from './markdown'
 import { counts } from './parse'
@@ -30,6 +30,10 @@ const started = atom({ plugin: 'wayfinder-maps', key: 'started' } as const, {} a
 
 /** How long a ticket opened in a new chat stays out of "Work next", for its chat to claim it. */
 const STARTED_MS = 15 * 60_000
+/** The command a Work button last copied for the person to paste in a new chat. */
+const copied = atom({ plugin: 'wayfinder-maps', key: 'copied' } as const, null as WfCopied)
+/** How long the toast shows before the app moves to the new chat. */
+const OPEN_AFTER_MS = 1_500
 
 const MAP_STATUS_LABEL: Record<WfMap['status'], { text: string; color: string }> = {
   open: { text: 'open', color: STATUS_STYLE.open.fill },
@@ -48,7 +52,7 @@ const prompts = {
   frontier: '/wayfinder-maps:implement-frontier {map}',
 }
 /** Where Work buttons work: a new chat (the default), always a terminal window, or this chat. */
-let workIn: 'new-chat' | 'terminal' | 'here' = 'new-chat'
+let workIn: 'new-chat' | 'here' = 'new-chat'
 let platform: Platform | undefined
 let lastGithubAt = 0
 let githubMaps: WfMap[] = []
@@ -111,7 +115,7 @@ const takeable = (map: WfMap, opened: Record<string, number>, now: number) =>
 
 /** Where a Work button works, from the setting and the surface it was pressed on. */
 const chatFor = (): 'app' | 'terminal' | 'here' =>
-  workIn === 'here' || drawnOn === 'mobile' ? 'here' : workIn === 'terminal' || drawnOn !== 'desktop' ? 'terminal' : 'app'
+  workIn === 'here' || drawnOn === 'mobile' ? 'here' : drawnOn === 'desktop' ? 'app' : 'terminal'
 
 function ioFor($: EngineInterface): Io {
   return {
@@ -195,6 +199,7 @@ async function scrollTo($: EngineInterface, to: 'start' | { key: string }) {
 
 /** Shows one ticket on a page of its own: its body is read first, so the page draws once. */
 async function openTicket($: EngineInterface, map: WfMap, ticket: WfTicket) {
+  await update($, copied, () => null)
   const io = ioFor($)
   const root = (await read($, data))?.root ?? (await $.session.root())
   let body: string
@@ -217,6 +222,7 @@ async function backToMap($: EngineInterface) {
 }
 
 async function openMap($: EngineInterface, mapId: string | null) {
+  await update($, copied, () => null)
   await update($, view, v => ({ ...v, mapId, ticketId: null }))
   await scrollTo($, 'start')
 }
@@ -248,12 +254,24 @@ async function platformOf($: EngineInterface): Promise<Platform> {
   return platform
 }
 
-/** Opens one new chat on `prompt`: what was run, or null when the host could not run it. */
+/**
+ * Opens one new chat: an empty desktop-app session in the project, or a
+ * terminal window on `prompt`. What was run, or null when the host could not run it.
+ */
 async function openChat($: EngineInterface, how: 'app' | 'terminal', prompt: string, root: string, title: string) {
   const p = await platformOf($)
-  const launch: Launch = how === 'app' ? appChat(prompt, root, p) : terminalChat(prompt, root, title, p)
+  const launch: Launch = how === 'app' ? appChat(root, p) : terminalChat(prompt, root, title, p)
   const r = await $.process.run(launch.argv, { cwd: launch.cwd ?? root, timeoutMs: 15_000 }).catch(() => null)
   return r?.exitCode === 0 ? launch : null
+}
+
+/** Puts `text` on the clipboard: through the surface, else the host's own tool. True when it took. */
+async function copyText($: EngineInterface, text: string): Promise<boolean> {
+  const surface = drawnOn === 'desktop' || drawnOn === 'terminal' || drawnOn === 'vscode' ? drawnOn : undefined
+  const viaSurface = await $.ui.copy({ text, surface }).catch(() => null)
+  if (viaSurface?.isCopied) return true
+  const r = await $.process.run(clipboardArgv(await platformOf($)), { stdin: text, timeoutMs: 5_000 }).catch(() => null)
+  return r?.exitCode === 0
 }
 
 /** Keeps the tickets just opened in new chats out of "Work next" until their chats claim them. */
@@ -284,6 +302,26 @@ async function work($: EngineInterface, map: WfMap, ticket: WfTicket | null, wav
     return
   }
   const name = ticket ? ticket.ref : wave.length > 0 ? `the frontier (${wave.map(t => t.ref).join(' ')})` : `the ${map.kind}`
+  if (how === 'app') {
+    // The app opens a new chat but never runs a command for it: the person pastes the copied one.
+    const isCopied = await copyText($, text)
+    const keys = pasteKeys(await platformOf($))
+    await update($, copied, () => ({ text, isCopied, keys }))
+    $.ui.toast(
+      isCopied
+        ? `Copied ${text}. Opening a new chat in this project: paste it (${keys}) and press Enter.`
+        : `Could not copy. Opening a new chat in this project: type ${text} there.`,
+      { timeoutMs: 10_000 },
+    )
+    // Long enough to read the toast before the app moves to the new chat.
+    await $.clock.sleep(OPEN_AFTER_MS)
+    if (!(await openChat($, 'app', text, root, ''))) {
+      $.ui.toast(`Could not open a new chat. Open one in this project and paste ${text}.`, { timeoutMs: 10_000 })
+      return
+    }
+    await markOpened($, ticket ? [ticket.id] : wave.map(t => t.id))
+    return
+  }
   const opened = await openChat($, how, text, root, `Wayfinder ${ticket?.ref ?? map.kind}`)
   if (!opened) {
     $.ui.toast(`Could not open a new chat. Its prompt: ${text}`, { timeoutMs: 10_000 })
@@ -526,7 +564,20 @@ const CHIPS: { filter: WfFilter; label: string }[] = [
   { filter: 'done', label: `${STATUS_STYLE.done.glyph} Done` },
 ]
 
-type Launches = { opened: Record<string, number>; now: number }
+type Launches = { opened: Record<string, number>; now: number; copied: WfCopied }
+
+/** What the last Work button copied, for the person coming back from the new chat. */
+function pasteNote(el: Els, c: WfCopied) {
+  const { Text } = el
+  if (!c) return ''
+  return (
+    <Text dimColor wrap="wrap">
+      {c.isCopied
+        ? `✓ Copied ${c.text} · paste it in the new chat (${c.keys}) and press Enter`
+        : `Could not copy · type ${c.text} in the new chat`}
+    </Text>
+  )
+}
 
 function mapView($: EngineInterface, el: Els, map: WfMap, v: WfView, columns: number, launches: Launches) {
   const { Box, Text, Button, Markdown, Link } = el
@@ -605,6 +656,7 @@ function mapView($: EngineInterface, el: Els, map: WfMap, v: WfView, columns: nu
           <Button key="work-spec" label={`Implement spec ${arrow}`} variant="secondary" onPress={bind('work-spec', () => work($, map, null))} />
         )}
       </Box>
+      {pasteNote(el, launches.copied)}
       <Box flexDirection="row" gap={1} flexWrap="wrap">
         {CHIPS.filter(x => x.filter === 'all' || x.filter === 'unresolved' || x.filter === 'frontier' || countOf[x.filter] > 0).map(x => (
           <Button
@@ -678,6 +730,7 @@ function ticketPage($: EngineInterface, el: Els, map: WfMap, t: WfTicket, det: W
         )}
         {t.url ? <Link href={t.url} label="Open issue ↗" /> : t.path ? <Markdown text={`[Open file ↗](${fileUrl(t.path)})`} /> : ''}
       </Box>
+      {pasteNote(el, launches.copied)}
       {after.length > 0 && (
         <Box flexDirection="column">
           <Text dimColor bold>
@@ -713,7 +766,7 @@ function ticketPage($: EngineInterface, el: Els, map: WfMap, t: WfTicket, det: W
 }
 
 export const register: Register = (on, options) => {
-  if (options.workIn === 'new-chat' || options.workIn === 'terminal' || options.workIn === 'here') workIn = options.workIn
+  if (options.workIn === 'new-chat' || options.workIn === 'here') workIn = options.workIn
   if (typeof options.mapPrompt === 'string') prompts.map = options.mapPrompt
   if (typeof options.mapTicketPrompt === 'string') prompts.mapTicket = options.mapTicketPrompt
   if (typeof options.specTicketPrompt === 'string') prompts.specTicket = options.specTicketPrompt
@@ -834,7 +887,7 @@ export const register: Register = (on, options) => {
     const map = v.mapId ? d.maps.find(m => m.id === v.mapId) : undefined
     const ticket = map && v.ticketId ? map.tickets.find(t => t.id === v.ticketId) : undefined
     // `started` may predate a hot reload that added it.
-    const launches: Launches = { opened: (await read($, started)) ?? {}, now: await $.clock.now() }
+    const launches: Launches = { opened: (await read($, started)) ?? {}, now: await $.clock.now(), copied: (await read($, copied)) ?? null }
     const body = !map
       ? mapList($, el, d)
       : ticket

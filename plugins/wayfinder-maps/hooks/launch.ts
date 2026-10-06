@@ -12,9 +12,12 @@ export type Launch = {
   startsAtOnce: boolean
 }
 
-/** The desktop app's link to a new Code session in `folder`, the prompt filled in (not sent). */
-export const appLink = (prompt: string, folder: string) =>
-  `claude://code/new?q=${encodeURIComponent(prompt)}&folder=${encodeURIComponent(folder)}`
+/**
+ * The desktop app's link to a new Code session in `folder`. It carries no
+ * prompt: the app turns the `/` of a slash command in one into `／`, so a
+ * link can never run a skill. The person pastes the copied command instead.
+ */
+export const appLink = (folder: string) => `claude://code/new?folder=${encodeURIComponent(folder)}`
 
 /** Claude Code's link to a new terminal session in `cwd`, the prompt filled in (not sent). */
 export const cliLink = (prompt: string, cwd: string) =>
@@ -27,11 +30,21 @@ export function openLink(url: string, platform: Platform): string[] {
   return [platform === 'mac' ? 'open' : 'xdg-open', url]
 }
 
-/** A new session in the desktop app, in the project's folder. */
-export const appChat = (prompt: string, root: string, platform: Platform): Launch => ({
-  argv: openLink(appLink(prompt, root), platform),
+/** A new, empty session in the desktop app, in the project's folder. */
+export const appChat = (root: string, platform: Platform): Launch => ({
+  argv: openLink(appLink(root), platform),
   startsAtOnce: false,
 })
+
+/** The host's own clipboard tool, reading the text on stdin: where the surface takes no copy. */
+export function clipboardArgv(platform: Platform): string[] {
+  if (platform === 'windows') return ['clip.exe']
+  if (platform === 'mac') return ['pbcopy']
+  return ['sh', '-c', 'wl-copy 2>/dev/null || xclip -selection clipboard']
+}
+
+/** The paste shortcut, as the person's keyboard spells it. */
+export const pasteKeys = (platform: Platform) => (platform === 'mac' ? '⌘V' : 'Ctrl+V')
 
 // cmd.exe reads its own command line: these end or change it, quoted or not.
 const CMD_UNSAFE = /["%^&|<>!\r\n]/
