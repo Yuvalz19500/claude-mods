@@ -1,16 +1,22 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import { appChat, appLink, clipboardArgv, cliLink, openLink, pasteKeys, terminalChat } from '../hooks/launch'
+import { appChat, appLink, clipboardArgv, cliLink, folderName, openLink, pasteKeys, terminalChat } from '../hooks/launch'
 
 const PROMPT = '/mattpocock-skills:wayfinder .scratch/orbit/map.md .scratch/orbit/issues/07-pricing.md'
 const ROOT = 'C:\\Users\\me\\orbit'
 
 describe('links', () => {
-  test('the desktop app link opens the project folder and carries no prompt', () => {
-    const url = new URL(appLink(ROOT))
+  test('the desktop app link names no folder, so the app asks no trust question, and carries no prompt', () => {
+    const url = new URL(appLink())
     expect(url.protocol).toBe('claude:')
-    expect(url.searchParams.get('folder')).toBe(ROOT)
+    expect(url.searchParams.has('folder')).toBe(false)
     expect(url.searchParams.has('q')).toBe(false)
+  })
+
+  test('a folder is named as the app picker shows it', () => {
+    expect(folderName(ROOT)).toBe('orbit')
+    expect(folderName('C:\\Users\\Ron\\Desktop\\PM BRIBO\\')).toBe('PM BRIBO')
+    expect(folderName('/home/me/orbit')).toBe('orbit')
   })
 
   test('the terminal link carries the prompt and the working directory', () => {
@@ -29,10 +35,10 @@ describe('links', () => {
 })
 
 describe('new chats', () => {
-  test('in the app: a new, empty session in the project', () => {
-    const l = appChat(ROOT, 'windows')
+  test('in the app: a new, empty session', () => {
+    const l = appChat('windows')
     expect(l.startsAtOnce).toBe(false)
-    expect(l.argv).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler', appLink(ROOT)])
+    expect(l.argv).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler', 'claude://code/new'])
   })
 
   test('in a terminal on Windows: a window of its own running claude on the prompt', () => {
