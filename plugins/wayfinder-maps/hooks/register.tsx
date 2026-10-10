@@ -6,7 +6,7 @@ import type { CardProps } from './card'
 import { ClickGate } from './clicks'
 import { githubIssueBody, githubRepo, loadGithubMaps } from './github'
 import { STATUS_STYLE, cardLayout, cardRows, dependents, layers, treeRows } from './graph'
-import { appChat, clipboardArgv, pasteKeys, terminalChat } from './launch'
+import { appChat, clipboardArgv, folderName, pasteKeys, terminalChat } from './launch'
 import type { Launch, Platform } from './launch'
 import { loadMarkdownMaps, readText } from './markdown'
 import { counts } from './parse'
@@ -260,7 +260,7 @@ async function platformOf($: EngineInterface): Promise<Platform> {
  */
 async function openChat($: EngineInterface, how: 'app' | 'terminal', prompt: string, root: string, title: string) {
   const p = await platformOf($)
-  const launch: Launch = how === 'app' ? appChat(root, p) : terminalChat(prompt, root, title, p)
+  const launch: Launch = how === 'app' ? appChat(p) : terminalChat(prompt, root, title, p)
   const r = await $.process.run(launch.argv, { cwd: launch.cwd ?? root, timeoutMs: 15_000 }).catch(() => null)
   return r?.exitCode === 0 ? launch : null
 }
@@ -306,11 +306,12 @@ async function work($: EngineInterface, map: WfMap, ticket: WfTicket | null, wav
     // The app opens a new chat but never runs a command for it: the person pastes the copied one.
     const isCopied = await copyText($, text)
     const keys = pasteKeys(await platformOf($))
+    const project = folderName(root)
     await update($, copied, () => ({ text, isCopied, keys }))
     $.ui.toast(
       isCopied
-        ? `Copied ${text}. Opening a new chat in this project: paste it (${keys}) and press Enter.`
-        : `Could not copy. Opening a new chat in this project: type ${text} there.`,
+        ? `Copied ${text}. Opening a new chat: with ${project} selected under the prompt, paste it (${keys}) and press Enter.`
+        : `Could not copy. Opening a new chat: with ${project} selected under the prompt, type ${text} there.`,
       { timeoutMs: 10_000 },
     )
     // Long enough to read the toast before the app moves to the new chat.

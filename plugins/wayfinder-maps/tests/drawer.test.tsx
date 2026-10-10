@@ -283,11 +283,11 @@ for (const surface of ['desktop', 'terminal'] as const) {
       ]
       const first = host.chats()[0]!
       if (surface === 'desktop') {
-        // Each command copied, then an empty new session opened in the project's folder, to paste it in.
+        // Each command copied, then an empty new session opened (no folder: no trust question), to paste it in.
         expect(host.copies).toEqual(prompts)
         expect(host.chats()).toHaveLength(prompts.length)
-        expect(first.argv).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler', 'claude://code/new?folder=R'])
-        expect(host.toasts[0]).toMatch(/^Copied \/mattpocock-skills:wayfinder .*paste it \(Ctrl\+V\) and press Enter/)
+        expect(first.argv).toEqual(['rundll32.exe', 'url.dll,FileProtocolHandler', 'claude://code/new'])
+        expect(host.toasts[0]).toMatch(/^Copied \/mattpocock-skills:wayfinder .*with R selected under the prompt, paste it \(Ctrl\+V\) and press Enter/)
       } else {
         expect(host.chats().map(promptOf)).toEqual(prompts)
         expect(host.copies).toEqual([])
@@ -350,7 +350,7 @@ describe('copying for the new desktop chat', () => {
     await ui.press({ key: MAP })
     await ui.press({ key: 'work-next' })
     expect(host.toasts[0]).toMatch(/paste it \(⌘V\)/)
-    expect(host.chats()[0]!.argv).toEqual(['open', 'claude://code/new?folder=R'])
+    expect(host.chats()[0]!.argv).toEqual(['open', 'claude://code/new'])
   })
 })
 

@@ -13,11 +13,18 @@ export type Launch = {
 }
 
 /**
- * The desktop app's link to a new Code session in `folder`. It carries no
- * prompt: the app turns the `/` of a slash command in one into `／`, so a
- * link can never run a skill. The person pastes the copied command instead.
+ * The desktop app's link to its new-session page. It names no folder: a
+ * `folder` makes the app ask "Trust this workspace?", and trusting the folder
+ * already selected there leaves the page's folder and branch broken. The
+ * page keeps the folder last chosen; the toast names the project to check.
+ * It carries no prompt either: the app turns the `/` of a slash command in
+ * one into `／`, so a link can never run a skill. The person pastes the
+ * copied command instead.
  */
-export const appLink = (folder: string) => `claude://code/new?folder=${encodeURIComponent(folder)}`
+export const appLink = () => 'claude://code/new'
+
+/** A folder's own name, the last part of its path, as the app's folder picker shows it. */
+export const folderName = (path: string) => path.split(/[\\/]+/).filter(Boolean).pop() ?? path
 
 /** Claude Code's link to a new terminal session in `cwd`, the prompt filled in (not sent). */
 export const cliLink = (prompt: string, cwd: string) =>
@@ -30,9 +37,9 @@ export function openLink(url: string, platform: Platform): string[] {
   return [platform === 'mac' ? 'open' : 'xdg-open', url]
 }
 
-/** A new, empty session in the desktop app, in the project's folder. */
-export const appChat = (root: string, platform: Platform): Launch => ({
-  argv: openLink(appLink(root), platform),
+/** A new, empty session in the desktop app, in the folder its picker holds. */
+export const appChat = (platform: Platform): Launch => ({
+  argv: openLink(appLink(), platform),
   startsAtOnce: false,
 })
 
