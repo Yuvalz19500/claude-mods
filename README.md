@@ -52,7 +52,7 @@ Every Work button works in a **new chat with no context**, so free tickets can b
 Shipped with this plugin, for implementing a spec one wave at a time, so you can check each wave and answer what waits on you before starting the next. Run it from the drawer or as `/wayfinder-maps:implement-frontier <spec>`. It:
 
 1. Fixes the wave: the frontier tickets as they stand when it starts. Tickets that unblock during the run wait for the next wave.
-2. Claims them, opens one branch and one draft PR for the wave, and starts a subagent per ticket, each in its own worktree, doing what `/implement` does (TDD, typecheck, the tests its change affects, code review, commit).
+2. Claims them, opens one branch and one draft PR for the wave, and starts a subagent per ticket, each in its own worktree, doing what `/implement` does (TDD, typecheck, the tests its change affects, code review, commit). When a `test-audit` skill is installed, every test a subagent writes passes its authoring gate: it names what it protects and the bug that would fail it, and doesn't copy a test that already proves the same thing.
 3. Merges each finished ticket into the wave branch, marks it done, and deletes that subagent's worktree and branch (local and remote) right away.
 4. Runs the full test suite once on the wave branch and fixes what fails.
 5. Runs `/code-review` on the wave branch and fixes what it raises.
