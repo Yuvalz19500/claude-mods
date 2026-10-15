@@ -58,6 +58,16 @@ Shipped with this plugin, for implementing a spec one wave at a time, so you can
 5. Runs `/code-review` on the wave branch and fixes what it raises.
 6. Marks the PR ready, confirms no subagent worktree or branch is left (the wave branch is the only one it leaves), and reports what it built, what the wave unblocked, and what waits on you. Then it stops.
 
+**More skills**
+
+Three more skills ship with the plugin. Claude loads each one on its own when the situation fits; you can also ask for one by name.
+
+| Skill | When it applies | What it does |
+| --- | --- | --- |
+| `test-audit` | Writing, changing or reviewing tests in any repo, and the audit before a wave or feature merges. | Gates every new test (what it protects, the bug that fails it, the cheapest layer that catches it, extend rather than copy) and, in an audit, deletes, merges or repairs tests that prove nothing new, with a report of what still proves each deleted one. `implement-frontier` holds every test to its gate. |
+| `wayfinder-map-threads` | Running `/wayfinder` on a map that already exists, in a Claude project. | Claims every unblocked ticket and starts one thread per ticket (a cloud thread, or a Remote Control thread on your PC when the ticket needs it), instead of working a ticket in the current chat. |
+| `wayfinder-wave-runner` | Building a spec wave by wave with `implement-frontier`, in a Claude project. | Where each wave runs (cloud or your PC), one thread per wave, models and effort, branch names, when the full suite runs, the test audit before merge, the manual-test checklist walked item by item, and the cleanup after every merge. |
+
 **Where it looks**
 
 | Tracker | What it reads |
