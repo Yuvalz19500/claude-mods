@@ -13,6 +13,8 @@ export type CardProps = {
   after: string
   isClosed: boolean
   width: number
+  /** Every card on a board is this tall, the tallest card's rows, so cards line up. */
+  height: number
 }
 
 type CardState = { isHover: boolean }
@@ -41,7 +43,7 @@ const TicketCard: ClientModule<CardProps, CardState> = (p, surface) => {
 
   const isDim = p.isClosed && !isHover
   return (
-    <Box flexDirection="column" width={p.width} borderStyle="round" borderColor={p.color} borderDimColor={isDim} paddingX={1}>
+    <Box flexDirection="column" width={p.width} height={p.height} borderStyle="round" borderColor={p.color} borderDimColor={isDim} paddingX={1}>
       <Box flexDirection="row" justifyContent="space-between" gap={1}>
         <Box flexDirection="row" gap={1} flexShrink={0}>
           <Text color={p.color}>{p.glyph}</Text>
@@ -59,7 +61,14 @@ const TicketCard: ClientModule<CardProps, CardState> = (p, surface) => {
           {line}
         </Text>
       ))}
-      {p.after ? <Text dimColor>{p.after}</Text> : ''}
+      <Box flexGrow={1} />
+      {p.after ? (
+        <Text dimColor wrap="truncate-end">
+          {p.after}
+        </Text>
+      ) : (
+        ''
+      )}
     </Box>
   )
 }
