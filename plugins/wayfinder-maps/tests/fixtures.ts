@@ -85,11 +85,52 @@ export const GH_BY_NUMBER = {
   },
 }
 
-/** A fake `gh`: repo view, the maps query, the by-number query and issue view. */
+const SPEC = {
+  number: 30,
+  title: 'Spec: Ship it',
+  state: 'OPEN',
+  url: 'https://github.com/o/r/issues/30',
+  body: 'Parent map: #1.\n\n## Problem',
+  labels: { nodes: [{ name: 'ready-for-agent' }] },
+  subIssues: {
+    nodes: [
+      { number: 20, title: 'Step 1', state: 'OPEN', url: 'https://github.com/o/r/issues/20', body: '', assignees: { nodes: [] }, labels: { nodes: [] }, blockedBy: { nodes: [] }, subIssues: { totalCount: 2 } },
+      { number: 23, title: 'Loose ticket', state: 'OPEN', url: 'https://github.com/o/r/issues/23', body: '', assignees: { nodes: [] }, labels: { nodes: [{ name: 'ready-for-human' }] }, blockedBy: { nodes: [] }, subIssues: { totalCount: 0 } },
+    ],
+  },
+}
+
+/** What the spec search answers: the spec under both searches, and an issue that only mentions specs. */
+export const GH_SPECS = {
+  data: {
+    byTitle: { nodes: [SPEC, { number: 40, title: 'Respec the logo', state: 'OPEN', url: 'https://github.com/o/r/issues/40', body: '', labels: { nodes: [] }, subIssues: { nodes: [] } }] },
+    byLabel: { nodes: [SPEC] },
+  },
+}
+
+/** The spec's build-step group, opened up. */
+export const GH_GROUPS = {
+  data: {
+    repository: {
+      g20: {
+        subIssues: {
+          nodes: [
+            { number: 21, title: 'Scaffold', state: 'CLOSED', stateReason: 'COMPLETED', url: 'https://github.com/o/r/issues/21', body: '', assignees: { nodes: [] }, labels: { nodes: [] }, blockedBy: { nodes: [] }, subIssues: { totalCount: 0 } },
+            { number: 22, title: 'Store', state: 'OPEN', url: 'https://github.com/o/r/issues/22', body: '## Parent\n\n#20\n\n## Blocked by\n\n- #21 Scaffold\n- #23 Loose ticket\n\n---\n_footer #99_', assignees: { nodes: [] }, labels: { nodes: [] }, blockedBy: { nodes: [] }, subIssues: { totalCount: 0 } },
+          ],
+        },
+      },
+    },
+  },
+}
+
+/** A fake `gh`: repo view, the maps and spec queries, the by-number and group queries and issue view. */
 export const fakeGh: Io['run'] = async argv => {
   const args = argv.join(' ')
   if (args.startsWith('gh repo view')) return { exitCode: 0, stdout: 'o/r\n', stderr: '' }
   if (args.includes('wayfinder:map')) return { exitCode: 0, stdout: JSON.stringify(GH_MAPS), stderr: '' }
+  if (args.includes('wayfinder:spec')) return { exitCode: 0, stdout: JSON.stringify(GH_SPECS), stderr: '' }
+  if (args.includes('g20: issue')) return { exitCode: 0, stdout: JSON.stringify(GH_GROUPS), stderr: '' }
   if (args.includes('i10: issue')) return { exitCode: 0, stdout: JSON.stringify(GH_BY_NUMBER), stderr: '' }
   if (args.startsWith('gh issue view')) return { exitCode: 0, stdout: JSON.stringify({ body: 'Issue body', comments: [{ author: 'yuval', body: 'Answer: 50/s' }] }), stderr: '' }
   return { exitCode: 1, stdout: '', stderr: `unexpected: ${args}` }

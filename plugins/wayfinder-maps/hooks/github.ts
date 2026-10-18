@@ -14,21 +14,31 @@ type GhIssue = {
   assignees?: { nodes: { login: string }[] }
   labels?: { nodes: { name: string }[] }
   blockedBy?: { nodes: { number: number }[] }
-  subIssues?: { nodes: GhIssue[] }
+  subIssues?: { totalCount?: number; nodes: GhIssue[] }
 }
 
 const CHILD = `number title state stateReason url body
   assignees(first: 3) { nodes { login } }
   labels(first: 10) { nodes { name } }
-  blockedBy(first: 30) { nodes { number } }`
+  blockedBy(first: 30) { nodes { number } }
+  subIssues(first: 1) { totalCount }`
+
+const HEAD = `number title state stateReason url body labels(first: 10) { nodes { name } } subIssues(first: 100) { nodes { ${CHILD} } }`
 
 const MAPS_QUERY = `query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     issues(first: 50, labels: ["wayfinder:map"], states: [OPEN, CLOSED], orderBy: { field: CREATED_AT, direction: DESC }) {
-      nodes { number title state stateReason url body subIssues(first: 100) { nodes { ${CHILD} } } }
+      nodes { ${HEAD} }
     }
   }
 }`
+
+/** A graduated spec is an issue titled `Spec: …` (or labelled `wayfinder:spec`); search finds both. */
+const SPECS_QUERY = `query($byTitle: String!, $byLabel: String!) {
+  byTitle: search(query: $byTitle, type: ISSUE, first: 50) { nodes { ... on Issue { ${HEAD} } } }
+  byLabel: search(query: $byLabel, type: ISSUE, first: 20) { nodes { ... on Issue { ${HEAD} } } }
+}`
+const SPEC_TITLE = /^\s*spec\s*[:·—–-]/i
 
 async function gh(io: Io, root: string, args: string[]): Promise<{ ok: boolean; out: string; err: string }> {
   try {
@@ -49,9 +59,21 @@ export async function githubRepo(io: Io, root: string): Promise<string | null> {
 function taskListNumbers(body: string): number[] {
   return [...body.matchAll(/^\s*[-*]\s+\[[ xX]\]\s+.*?#(\d+)/gm)].map(m => Number(m[1]))
 }
+/** `Blocked by: #3 #4` near the top, or a `## Blocked by` heading (or bare `Blocked by:` line) over a `- #3` list. */
 function bodyBlockers(body: string): number[] {
-  const line = body.split(/\r?\n/).slice(0, 15).find(l => /^\**blocked by\**\s*:/i.test(l))
-  return line ? [...line.matchAll(/#(\d+)/g)].map(m => Number(m[1])) : []
+  const lines = body.split(/\r?\n/)
+  const line = lines.slice(0, 15).find(l => /^\**blocked by\**\s*:/i.test(l))
+  if (line && /#\d+/.test(line)) return [...line.matchAll(/#(\d+)/g)].map(m => Number(m[1]))
+  const start = lines.findIndex(l => /^\s*(#{1,6}\s*)?\**blocked by\**\s*:?\s*\**\s*$/i.test(l))
+  if (start < 0) return []
+  const found: number[] = []
+  for (const l of lines.slice(start + 1)) {
+    if (/^\s*#{1,6}\s/.test(l)) break
+    const item = l.match(/^\s*[-*]\s+(?:\[[ xX]\]\s+)?.*?#(\d+)/)
+    if (item) found.push(Number(item[1]))
+    else if (l.trim() !== '') break
+  }
+  return found
 }
 
 async function fetchByNumber(io: Io, root: string, owner: string, name: string, numbers: number[]): Promise<GhIssue[]> {
@@ -62,6 +84,22 @@ async function fetchByNumber(io: Io, root: string, owner: string, name: string, 
   if (!r.ok) return []
   const repo = JSON.parse(r.out).data?.repository ?? {}
   return Object.values(repo).filter(Boolean) as GhIssue[]
+}
+
+/**
+ * Children that have sub-issues of their own are groups (GitHub caps a parent at 100 sub-issues,
+ * so a big spec groups its tickets, by build step say): their sub-issues are the tickets.
+ */
+async function expandGroups(io: Io, root: string, owner: string, name: string, children: GhIssue[]): Promise<GhIssue[]> {
+  const groups = children.filter(c => (c.subIssues?.totalCount ?? 0) > 0)
+  if (groups.length === 0) return children
+  const fields = groups.map(g => `g${g.number}: issue(number: ${g.number}) { subIssues(first: 100) { nodes { ${CHILD} } } }`).join('\n')
+  const q = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`
+  const r = await gh(io, root, ['api', 'graphql', '-f', `query=${q}`, '-F', `owner=${owner}`, '-F', `name=${name}`])
+  if (!r.ok) return children
+  const repo = JSON.parse(r.out).data?.repository ?? {}
+  const inner = new Map(groups.map(g => [g.number, (repo[`g${g.number}`]?.subIssues?.nodes ?? []) as GhIssue[]]))
+  return children.flatMap(c => inner.get(c.number) ?? [c])
 }
 
 function toTicket(issue: GhIssue): ParsedTicketFile & { closedAs?: WfStatus } {
@@ -85,33 +123,60 @@ function toTicket(issue: GhIssue): ParsedTicketFile & { closedAs?: WfStatus } {
   }
 }
 
-/** Loads every `wayfinder:map` issue of the repo with its sub-issues and blocking edges. */
+/** The spec issues of the repo: titled `Spec: …` or labelled `wayfinder:spec`, maps left out. */
+async function findSpecs(io: Io, root: string, repo: string): Promise<GhIssue[]> {
+  const r = await gh(io, root, [
+    'api', 'graphql',
+    '-f', `query=${SPECS_QUERY}`,
+    '-f', `byTitle=repo:${repo} is:issue in:title spec`,
+    '-f', `byLabel=repo:${repo} is:issue label:"wayfinder:spec"`,
+  ])
+  if (!r.ok) return []
+  const data = JSON.parse(r.out).data ?? {}
+  const found = new Map<number, GhIssue>()
+  for (const issue of [...(data.byTitle?.nodes ?? []), ...(data.byLabel?.nodes ?? [])] as GhIssue[]) {
+    if (!issue?.number) continue
+    const labels = issue.labels?.nodes.map(l => l.name) ?? []
+    if (labels.includes('wayfinder:map')) continue
+    if (labels.includes('wayfinder:spec') || SPEC_TITLE.test(issue.title)) found.set(issue.number, issue)
+  }
+  return [...found.values()]
+}
+
+/** Loads every `wayfinder:map` issue and every spec issue of the repo with their sub-issues and blocking edges. */
 export async function loadGithubMaps(io: Io, root: string, repo: string): Promise<{ maps: WfMap[]; error?: string }> {
   const [owner = '', name = ''] = repo.split('/')
-  const r = await gh(io, root, ['api', 'graphql', '-f', `query=${MAPS_QUERY}`, '-F', `owner=${owner}`, '-F', `name=${name}`])
+  const [r, specIssues] = await Promise.all([
+    gh(io, root, ['api', 'graphql', '-f', `query=${MAPS_QUERY}`, '-F', `owner=${owner}`, '-F', `name=${name}`]),
+    findSpecs(io, root, repo),
+  ])
   if (!r.ok) return { maps: [], error: `GitHub: ${(r.err || r.out).trim().split('\n')[0]}` }
-  const issues: GhIssue[] = JSON.parse(r.out).data?.repository?.issues?.nodes ?? []
-
-  const maps = await Promise.all(
-    issues.map(async (mapIssue): Promise<WfMap> => {
-      let children = mapIssue.subIssues?.nodes ?? []
-      if (children.length === 0) {
-        children = await fetchByNumber(io, root, owner, name, taskListNumbers(mapIssue.body ?? ''))
-      }
-      const tickets = finishTickets(children.map(toTicket))
-      const isClosed = mapIssue.state === 'CLOSED'
-      return {
-        id: `gh:${repo}#${mapIssue.number}`,
-        kind: 'map',
-        source: 'github',
-        title: mapIssue.title,
-        ref: `#${mapIssue.number}`,
-        url: mapIssue.url,
-        status: mapStatus('map', tickets, isClosed ? 'closed' : undefined, false),
-        tickets,
-      }
-    }),
+  const mapIssues: GhIssue[] = JSON.parse(r.out).data?.repository?.issues?.nodes ?? []
+  // A spec names the map it graduated from: `Parent map: #1`.
+  const graduated = new Set(
+    specIssues.flatMap(s => [...(s.body ?? '').matchAll(/parent map\**\s*:\**\s*#(\d+)/gi)].map(m => Number(m[1]))),
   )
+
+  const load = async (issue: GhIssue, kind: WfMap['kind']): Promise<WfMap> => {
+    let children = issue.subIssues?.nodes ?? []
+    if (children.length === 0) {
+      children = await fetchByNumber(io, root, owner, name, taskListNumbers(issue.body ?? ''))
+    }
+    children = await expandGroups(io, root, owner, name, children)
+    const tickets = finishTickets(children.map(toTicket))
+    const isClosed = issue.state === 'CLOSED'
+    return {
+      id: `gh:${repo}#${issue.number}`,
+      kind,
+      source: 'github',
+      title: issue.title,
+      ref: `#${issue.number}`,
+      url: issue.url,
+      status: mapStatus(kind, tickets, isClosed ? 'closed' : undefined, kind === 'map' && graduated.has(issue.number)),
+      tickets,
+    }
+  }
+  const maps = await Promise.all([...mapIssues.map(i => load(i, 'map')), ...specIssues.map(i => load(i, 'spec'))])
   return { maps }
 }
 
