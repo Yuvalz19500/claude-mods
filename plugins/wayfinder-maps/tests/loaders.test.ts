@@ -52,7 +52,6 @@ describe('GitHub', () => {
     expect(error).toBeUndefined()
     const map = maps.find(m => m.ref === '#1')!
     expect(map.source).toBe('github')
-    expect(map.status).toBe('active')
     expect(map.tickets.map(t => [t.ref, t.status, t.type, t.assignee, t.blockedBy])).toEqual([
       ['#2', 'done', 'research', undefined, []],
       ['#3', 'claimed', 'grilling', 'yuval', []],
@@ -69,6 +68,18 @@ describe('GitHub', () => {
       ['#10', 'done', []],
       ['#11', 'open', [10]],
     ])
+  })
+
+  test('reads a `Spec:` issue as a spec, opening grouped tickets and `## Blocked by` lists', async () => {
+    const { maps } = await loadGithubMaps(fakeIo(fakeGh), 'R', 'o/r')
+    const specs = maps.filter(m => m.kind === 'spec')
+    expect(specs.map(s => s.ref)).toEqual(['#30'])
+    expect(specs[0]!.tickets.map(t => [t.ref, t.status, t.blockedBy])).toEqual([
+      ['#21', 'done', []],
+      ['#22', 'blocked', [21, 23]],
+      ['#23', 'waiting', []],
+    ])
+    expect(maps.find(m => m.ref === '#1')!.status).toBe('graduated')
   })
 
   test('reports a failed query instead of throwing', async () => {
