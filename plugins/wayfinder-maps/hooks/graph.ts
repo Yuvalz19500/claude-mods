@@ -55,6 +55,25 @@ export function cardLayout(columns: number): { perRow: number; cardWidth: number
 export const cardRows = (card: { lines: readonly string[]; after: string }) => 2 + 1 + card.lines.length + (card.after ? 1 : 0)
 
 /**
+ * A card's "after" line, kept to one line of `width` cells: the blockers that
+ * fit, then `… +N` for the rest, which the ticket itself lists in full.
+ */
+export function afterLine(blockers: readonly { ref: string; glyph: string }[], width: number): string {
+  if (blockers.length === 0) return ''
+  const items = blockers.map(b => `${b.ref} ${b.glyph}`)
+  const full = `after ${items.join('  ')}`
+  if (full.length <= width) return full
+  let text = 'after'
+  for (let i = 0; i < items.length; i++) {
+    const next = `${text}${i === 0 ? ' ' : '  '}${items[i]}`
+    const tail = `  … +${items.length - i - 1}`
+    if (next.length + tail.length > width) return `${text}${i === 0 ? ' ' : '  '}… +${items.length - i}`
+    text = next
+  }
+  return text
+}
+
+/**
  * The same graph as an indented tree: each ticket under the first ticket that
  * blocks it, later mentions as a pointer back. Rows in display order.
  */

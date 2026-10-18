@@ -377,9 +377,10 @@ describe('steps layout', () => {
     const narrowCard = (await narrow.findAll({ type: 'Client' })).find((b: any) => String(b.key).startsWith('card:'))
     expect((wideCard as any)?.props?.width).toBeLessThan(50)
     expect((narrowCard as any)?.props?.width).toBe(38)
-    // Every card states its height, so the pane can scroll to the last one.
+    // Every card states its height, so the pane can scroll to the last one, and all share it.
     const heights: unknown[] = (await narrow.findAll({ type: 'Client' })).map((c: any) => c.props?.height)
     expect(heights.every(h => typeof h === 'number' && h >= 4)).toBe(true)
+    expect(new Set(heights).size).toBe(1)
   })
 })
 

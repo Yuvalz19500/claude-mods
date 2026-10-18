@@ -5,7 +5,7 @@ import type { WfCopied, WfData, WfDetail, WfFilter, WfLayout, WfMap, WfTicket, W
 import type { CardProps } from './card'
 import { ClickGate } from './clicks'
 import { githubIssueBody, githubRepo, loadGithubMaps } from './github'
-import { STATUS_STYLE, cardLayout, cardRows, dependents, layers, treeRows } from './graph'
+import { STATUS_STYLE, afterLine, cardLayout, cardRows, dependents, layers, treeRows } from './graph'
 import { appChat, clipboardArgv, folderName, pasteKeys, terminalChat } from './launch'
 import type { Launch, Platform } from './launch'
 import { loadMarkdownMaps, readText } from './markdown'
@@ -413,6 +413,21 @@ function mapList($: EngineInterface, el: Els, d: WfData) {
 }
 
 /**
+ * What a card holds besides its header: the title wrapped to the card (a
+ * Button draws on one line, so a line each) and the one-line "after" list.
+ */
+function cardContent(t: WfTicket, width: number, byNum: Map<number, WfTicket>) {
+  const blockers = t.blockedBy.map(n => byNum.get(n)).filter((x): x is WfTicket => !!x)
+  return {
+    lines: wrapLines(t.title, width - 4, 3),
+    after: afterLine(
+      blockers.map(b => ({ ref: b.ref, glyph: STATUS_STYLE[b.status].glyph })),
+      width - 4,
+    ),
+  }
+}
+
+/**
  * One ticket as a card, its status's color on the edge. Where the surface
  * runs surface modules (terminal, desktop) the card is a `Client`, so the
  * whole card is one click target (see card.tsx); elsewhere its title lines
@@ -426,38 +441,38 @@ function ticketCard(
   width: number,
   byNum: Map<number, WfTicket>,
   isNewChat: boolean,
+  height: number,
 ) {
   const { Box, Text, Button } = el
   const st = STATUS_STYLE[t.status]
   const closed = isClosed(t)
   const status = statusText(t, isNewChat)
-  const after = t.blockedBy.map(n => byNum.get(n)).filter((x): x is WfTicket => !!x)
-  const afterText = after.length > 0 ? `after ${after.map(b => `${b.ref} ${STATUS_STYLE[b.status].glyph}`).join('  ')}` : ''
+  const { lines, after: afterText } = cardContent(t, width, byNum)
   if ('Client' in el) {
     const { Client } = el
     const props: CardProps = {
       id: t.id,
       ref: t.ref,
       type: (t.type ?? '').toUpperCase(),
-      lines: wrapLines(t.title, width - 4, 3),
+      lines,
       status,
       color: st.fill,
       glyph: st.glyph,
       after: afterText,
       isClosed: closed,
       width,
+      height,
     }
     // An explicit height: left to the module, the pane measures before it draws and cuts the last card.
-    return <Client key={`card:${t.id}`} module="./card.tsx" props={props} width={width} height={cardRows(props)} />
+    return <Client key={`card:${t.id}`} module="./card.tsx" props={props} width={width} height={height} />
   }
   const open = bind(`t:${t.id}`, () => openTicket($, map, t))
-  // A Button draws on one line, so the title is wrapped here, a button per line.
-  const lines = wrapLines(t.title, width - 4, 3)
   return (
     <Box
       key={`card:${t.id}`}
       flexDirection="column"
       width={width}
+      height={height}
       borderStyle="round"
       borderColor={st.fill}
       borderDimColor={closed}
@@ -478,7 +493,12 @@ function ticketCard(
       {lines.map((line, i) => (
         <Button key={i === 0 ? `t:${t.id}` : `t:${t.id}#${i + 1}`} label={line} plain dimColor={closed} onPress={i === 0 ? open : bind(`t:${t.id}#${i + 1}`, () => openTicket($, map, t))} />
       ))}
-      {afterText && <Text dimColor>{afterText}</Text>}
+      <Box flexGrow={1} />
+      {afterText && (
+        <Text dimColor wrap="truncate-end">
+          {afterText}
+        </Text>
+      )}
     </Box>
   )
 }
@@ -494,6 +514,8 @@ function stepsView($: EngineInterface, el: Els, map: WfMap, shown: WfTicket[], c
     steps.set(l, [...(steps.get(l) ?? []), t])
   }
   const { cardWidth, gap } = cardLayout(columns)
+  // Every card on the board takes the height of the tallest, so they line up.
+  const height = Math.max(...shown.map(t => cardRows(cardContent(t, cardWidth, byNum))))
   return (
     <Box flexDirection="column" gap={1}>
       {[...steps.keys()]
@@ -510,7 +532,7 @@ function stepsView($: EngineInterface, el: Els, map: WfMap, shown: WfTicket[], c
                 <Text dimColor>· {done === tickets.length ? 'all done' : `${done} of ${tickets.length} done`}</Text>
               </Box>
               <Box flexDirection="row" flexWrap="wrap" columnGap={gap} rowGap={1}>
-                {tickets.map(t => ticketCard($, el, map, t, cardWidth, byNum, newChat.has(t.id)))}
+                {tickets.map(t => ticketCard($, el, map, t, cardWidth, byNum, newChat.has(t.id), height))}
               </Box>
             </Box>
           )

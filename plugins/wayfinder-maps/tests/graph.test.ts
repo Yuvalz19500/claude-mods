@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { WfStatus, WfTicket } from '../types'
-import { CARD_MIN, cardLayout, cardRows, dependents, layers, treeRows } from '../hooks/graph'
+import { CARD_MIN, afterLine, cardLayout, cardRows, dependents, layers, treeRows } from '../hooks/graph'
 
 const t = (num: number, status: WfStatus, blockedBy: number[] = [], title = `Ticket ${num}`): WfTicket => ({
   id: `id${num}`,
@@ -57,6 +57,21 @@ describe('cardRows', () => {
     expect(cardRows({ lines: ['Pricing tiers'], after: 'after 10 ◌' })).toBe(5)
     expect(cardRows({ lines: ['Uptime checks: our own or a', 'service?'], after: '' })).toBe(5)
     expect(cardRows({ lines: ['Who is Orbit for?'], after: '' })).toBe(4)
+  })
+})
+
+describe('afterLine', () => {
+  const deps = (n: number) => Array.from({ length: n }, (_, i) => ({ ref: `#${121 + i}`, glyph: '✓' }))
+
+  test('lists every blocker when they fit', () => {
+    expect(afterLine(deps(2), 40)).toBe('after #121 ✓  #122 ✓')
+    expect(afterLine([], 40)).toBe('')
+  })
+
+  test('cuts a long list to one line and counts the rest', () => {
+    const line = afterLine(deps(30), 40)
+    expect(line).toBe('after #121 ✓  #122 ✓  #123 ✓  … +27')
+    expect(line.length).toBeLessThanOrEqual(40)
   })
 })
 
