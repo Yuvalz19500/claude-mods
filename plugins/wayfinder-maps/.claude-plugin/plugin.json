@@ -1,7 +1,7 @@
 {
   "name": "wayfinder-maps",
-  "version": "0.6.2",
-  "description": "A side drawer that shows every wayfinder map and spec in the project (markdown or GitHub issues), their tickets, statuses and dependencies.",
+  "version": "0.7.0",
+  "description": "A side drawer that shows every wayfinder map and spec in the project (markdown or GitHub issues), their tickets, statuses and dependencies. Also blocks Claude's commits that carry a file over 5,000 tokens.",
   "author": {
     "name": "Yuval",
     "url": "https://github.com/Yuvalz19500"
@@ -12,7 +12,8 @@
     "wayfinder",
     "tickets",
     "dependencies",
-    "mod"
+    "mod",
+    "pre-commit"
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
@@ -52,6 +53,12 @@
       "title": "Implement-the-frontier prompt",
       "description": "Prompt for 'Implement frontier': one wave, the spec's frontier tickets built by parallel subagents, then stop. {map} is the spec path or issue URL.",
       "default": "/wayfinder-maps:implement-frontier {map}"
+    },
+    "maxFileTokens": {
+      "type": "number",
+      "title": "Largest file Claude may commit (tokens)",
+      "description": "A git commit Claude runs is refused while a file it carries is over this many tokens (bytes / 4), with instructions to split it. Lockfiles, codegen, binaries and files marked linguist-generated in .gitattributes don't count. 0 turns it off.",
+      "default": 5000
     }
   }
 }

@@ -79,9 +79,18 @@ Status words are folded into five states. `resolved`, `done` and closed issues a
 
 The drawer refreshes after every turn and every 30 seconds while it's open. GitHub is fetched at most once a minute; press **Refresh** to fetch now.
 
+**Commit size guard**
+
+In every project the plugin is installed for, Claude can't commit a file over 5,000 tokens (tokens = bytes / 4). When Claude runs `git commit` and a file it would commit is too big, the commit is refused before it runs, and Claude is told which files are over and how to split them: find the seams, move each group into its own file named for what it does, keep the original path re-exporting what callers use, move the tests along, then commit again. Nothing is installed in the project and nothing changes in `.git/hooks`.
+
+- **Only what Claude commits.** It guards the commits Claude runs through its Bash tool; your own commits from a terminal or an editor are untouched.
+- **Only the files being committed.** Staged files, measured as staged. When the same command runs `git add` or `git commit -a`, the files it would stage count too.
+- **Not lockfiles or codegen.** Lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `Cargo.lock`, `go.sum` and the like), build output (`dist/`, `build/`, `generated/`, `node_modules/`, `vendor/`), minified files, source maps, snapshots, `*.pb.go`-style codegen and binaries are skipped. Mark any other generated file in `.gitattributes` as `<path> linguist-generated` and it is skipped too.
+- **Your limit.** Set `maxFileTokens` to change it, or to `0` to turn the guard off.
+
 **Settings**
 
-Where the Work buttons work, and the prompts they send, can be changed under `/config` (or `pluginConfigs` in settings):
+Where the Work buttons work, the prompts they send and the commit size limit can be changed under `/config` (or `pluginConfigs` in settings):
 
 | Option | Default |
 | --- | --- |
@@ -91,6 +100,7 @@ Where the Work buttons work, and the prompts they send, can be changed under `/c
 | `specTicketPrompt` | `/mattpocock-skills:implement {ticket}` |
 | `specPrompt` | `/mattpocock-skills:implement-spec {map}` |
 | `frontierPrompt` | `/wayfinder-maps:implement-frontier {map}` |
+| `maxFileTokens` | `5000`: the largest file, in tokens (bytes / 4), Claude may commit. `0` turns the commit size guard off. |
 
 `{map}` is the map's (or spec's) path or issue URL, `{ticket}` the ticket's path or issue URL, `{title}` its title. A prompt starting with `/` runs as that slash command; anything else is sent as a message.
 

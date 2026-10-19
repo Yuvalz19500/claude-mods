@@ -12,6 +12,8 @@ import { loadMarkdownMaps, readText } from './markdown'
 import { counts } from './parse'
 import type { Io } from './parse'
 import { absolutizeLinks, fileUrl, stripHeaderFields, wrapLines } from './text'
+import { DEFAULT_TOKEN_LIMIT, blockMessage, commitIntent, gitDir, oversizedFiles } from './tokens'
+import type { GitIo, Oversized } from './tokens'
 
 const PANE = 'wayfinder'
 const TITLE = 'Wayfinder'
@@ -53,6 +55,8 @@ const prompts = {
 }
 /** Where Work buttons work: a new chat (the default), always a terminal window, or this chat. */
 let workIn: 'new-chat' | 'here' = 'new-chat'
+/** The most tokens (bytes / 4) a file Claude commits may hold; 0 turns the guard off. */
+let tokenLimit = DEFAULT_TOKEN_LIMIT
 let platform: Platform | undefined
 let lastGithubAt = 0
 let githubMaps: WfMap[] = []
@@ -123,6 +127,20 @@ function ioFor($: EngineInterface): Io {
     read: async path => String(await $.fs.read(path)),
     run: (argv, cwd) => $.process.run(argv, { cwd, timeoutMs: 30_000 }),
   }
+}
+
+/** The files over the token limit that a Bash command's `git commit` would carry; none when it commits nothing. */
+async function commitOversized($: EngineInterface, command: string): Promise<Oversized[]> {
+  const intent = commitIntent(command)
+  if (!intent || tokenLimit <= 0) return []
+  const io: GitIo = {
+    run: (argv, init) => $.process.run(argv, { ...init, timeoutMs: 30_000 }),
+    size: async path => {
+      const s = await $.fs.stat(path).catch(() => undefined)
+      return s?.kind === 'file' ? s.size : undefined
+    },
+  }
+  return oversizedFiles(io, gitDir(await $.session.cwd(), intent.cwd), intent, tokenLimit)
 }
 
 /**
@@ -795,6 +813,13 @@ export const register: Register = (on, options) => {
   if (typeof options.specTicketPrompt === 'string') prompts.specTicket = options.specTicketPrompt
   if (typeof options.specPrompt === 'string') prompts.spec = options.specPrompt
   if (typeof options.frontierPrompt === 'string') prompts.frontier = options.frontierPrompt
+  if (typeof options.maxFileTokens === 'number') tokenLimit = options.maxFileTokens
+
+  // Claude's own commits: refused while a file they carry is over the token limit.
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const over = await commitOversized($, e.command)
+    return over.length ? { deny: blockMessage(over, tokenLimit) } : next(e)
+  }).catch(($, e, next) => next(e))
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
