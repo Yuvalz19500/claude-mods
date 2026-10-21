@@ -24,7 +24,13 @@ What changed in each version is on the [Releases](https://github.com/Yuvalz19500
 
 A side drawer for projects planned with the [`/wayfinder`](https://github.com/mattpocock/skills) skill. Run `/wayfinder-maps` to open it. It works in the desktop Code tab and in the terminal.
 
-The Work buttons run Matt Pocock's skills, so install his `mattpocock-skills` plugin alongside it; the drawer itself reads your maps without it.
+The Work buttons run Matt Pocock's skills, so install his `mattpocock-skills` plugin alongside it; the drawer itself reads your maps without it. This marketplace lists it too, so one marketplace gives you both (and both reach your claude.ai account and cloud sessions):
+
+```bash
+claude plugin install mattpocock-skills@claude-mods
+```
+
+`mattpocock-skills` comes straight from [mattpocock/skills](https://github.com/mattpocock/skills), always its latest version; it is not maintained here.
 
 **The drawer**
 
