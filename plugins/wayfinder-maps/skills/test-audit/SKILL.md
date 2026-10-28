@@ -34,6 +34,7 @@ Also:
 - One bug, one owner regression test. Don't replay it at every layer the bug crossed.
 - A behavior-preserving refactor must not break the test: assert outcomes, not call shapes, class names or private helpers.
 - The test's name must match what its assertions actually check.
+- **Never depend on today's date or time.** Any data, demo feed or clock that follows the real date (synthetic series, "today" figures, time-zone or DST offsets, timestamps, days-left counts) is pinned to one fixed instant through a test-only seam, so every run sees the same values on any day and machine. Charts and time series need this most. Never hard-code a value that is only true on some dates.
 
 ## Junk patterns
 
@@ -49,6 +50,8 @@ Reject these in new tests; delete or repair them in an audit, unless the retenti
 - An end-to-end test asserting a calculation, rule or parse result a cheaper test already pins.
 - A negative control that passes because of an unrelated guard, or a rejection the code can never reach.
 - A fixture that fabricates what the code under test should produce (ordering, a saved file it never writes).
+- A test that reads the real current date, time or time zone, or asserts a value only true on some dates.
+- A sleep or fixed millisecond wait that only passes on an idle machine (wait on frames, events or state instead).
 
 ## Retention bar
 
