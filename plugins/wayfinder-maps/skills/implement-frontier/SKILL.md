@@ -31,7 +31,7 @@ Two rules hold for every subagent this run starts, and every brief says them:
 
    Mergers run only the merged ticket's affected tests, never the full suite.
 
-7. Run the change-aware tests for the whole wave on the wave branch (everything the wave's diff against its base affects), now that every ticket is in, to catch tickets that break each other. Fix what fails in a single **implementer subagent**, cleaned up the same way once merged, rerunning only the failed tests until they pass. Don't run the full suite here: it runs once per wave, on the wave branch right before the merge (in parallel on every platform the repo tests on), after the user has checked the wave. Every failure in that run gets fixed before merging, including failures that also happen on the default branch and flaky tests: find the cause and fix it, never rerun until green, skip, or wave it through as pre-existing.
+7. Run the change-aware tests for the whole wave on the wave branch (everything the wave's diff against its base affects), now that every ticket is in, to catch tickets that break each other. Fix what fails in a single **implementer subagent**, cleaned up the same way once merged, rerunning only the failed tests until they pass. Don't run the full suite here: it runs once per wave, on the wave branch right before the merge (once, on the fastest machine, with other machines covering only OS-specific stages: see the `lean-tests` skill's fast full run), after the user has checked the wave. Every failure in that run gets fixed before merging, including failures that also happen on the default branch and flaky tests: find the cause and fix it, never rerun until green, skip, or wave it through as pre-existing.
 
    Fixers hold their tests to the same `test-audit` gate.
 
