@@ -35,7 +35,7 @@ Two rules hold for every subagent this run starts, and every brief says them:
 
    Fixers hold their tests to the same `test-audit` gate.
 
-8. Don't run `/code-review` or verify in this run, neither per ticket nor on the wave branch. Both run once per wave, in the pre-merge pass on the wave branch, after the user has checked the wave and every fix is in, so a single review and a single verify cover all of the wave's changes. That pass goes: `/code-review` and fix what it raises, verify and fix what it finds, then the `test-audit` skill's audit when that skill is available, then the full suite, then the merge.
+8. Don't run `/code-review` or verify in this run, neither per ticket nor on the wave branch. Both run once per wave, in the pre-merge pass on the wave branch, after the user has checked the wave and every fix is in, so a single review and a single verify cover all of the wave's changes. That pass goes: `/code-review` and fix what it raises, verify and fix what it finds, then the `test-audit` skill's audit when that skill is available, then the full suite, then the merge. Each phase's fixes run in parallel: one fixer subagent per finding (or per small group sharing one cause or the same files), each in its own worktree, never one agent for the whole list.
 
 9. Mark the PR ready for review. Then sweep: `git worktree prune`, and confirm `git worktree list` shows no implementer worktree and `git branch -a --list '*<wave branch>--*'` shows no implementer branch, local or remote. Clean up any that remain. Done when both come back empty; the wave branch is the only branch this run leaves.
 
