@@ -24,7 +24,7 @@ Set `Status: claimed` on every wave ticket in one commit, `Claim map tickets NN,
 
 - **Research** (AFK): a cloud thread. It runs the research skill in a subagent and records the answer.
 - **Grilling, prototype or task** (HITL): a cloud thread that works with the user in that thread.
-- **Needs the user's PC** (the ticket or the map's Notes say it runs on their PC, Blender, their Claude login or Windows): a Remote Control thread in the repo folder on their device.
+- **Needs the user's own machine** (the ticket or the map's Notes say it runs on their computer, needs a desktop app they have installed, their Claude login or a particular OS): a Remote Control thread in the repo folder on their device.
 
 ## 4. Start the threads
 
@@ -39,4 +39,4 @@ The brief for each thread:
 
 ## 5. Report
 
-Reply with one line per ticket: its title, linked to its thread, and where it runs (cloud or PC). After that, list what's still blocked and what it waits on.
+Reply with one line per ticket: its title, linked to its thread, and where it runs (cloud or their machine). After that, list what's still blocked and what it waits on.
