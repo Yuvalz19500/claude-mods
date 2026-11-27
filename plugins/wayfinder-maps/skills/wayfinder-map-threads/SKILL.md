@@ -7,7 +7,7 @@ description: "Use whenever the user runs wayfinder on an existing map in a Claud
 
 The rule: each time the user runs `/mattpocock-skills:wayfinder` on a map that already exists, every unblocked ticket starts in its own thread. The session that received the command doesn't work a ticket itself. It dispatches tickets and reports. Charting a new map is unchanged and stays in the current session.
 
-This covers map tickets (decisions, prototypes, research, design tasks). Implementation waves of a finished spec still follow `wayfinder-wave-runner`: one thread per wave.
+This covers map tickets (decisions, prototypes, research, design tasks). Implementation waves of a finished spec follow `wayfinder-wave-runner`: one thread per spec ticket too, each running the `implement-ticket` skill, all landing on one wave branch.
 
 ## 1. Find the frontier
 
